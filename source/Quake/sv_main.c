@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_main.c -- server main program
 
 #include "quakedef.h"
+#include "q_ctype.h"
 
 server_t	sv;
 server_static_t	svs;
@@ -598,6 +599,31 @@ qboolean SV_VisibleToClient (edict_t *client, edict_t *test, qmodel_t *worldmode
 
 /*
 =============
+SV_CharacterModelIndex
+
+Players, their corpses and their gibbed heads keep the owner's colormap, so the
+player and head models are swapped for that client's character when sent.
+QuakeC never sees the character models.
+=============
+*/
+static int SV_CharacterModelIndex (edict_t *ent)
+{
+	int			i, modelindex = (int)ent->v.modelindex, owner = (int)ent->v.colormap;
+	const char	*name;
+
+	if (!sv.numcharacters || !modelindex || owner < 1 || owner > svs.maxclients)
+		return modelindex;
+	if (modelindex != sv.playermodelindex && modelindex != sv.headmodelindex)
+		return modelindex;
+	name = svs.clients[owner - 1].character;
+	for (i = 0; i < sv.numcharacters; i++)
+		if (!strcmp (sv.characters[i].name, name))
+			return modelindex == sv.playermodelindex ? sv.characters[i].modelindex : sv.characters[i].headindex;
+	return modelindex;
+}
+
+/*
+=============
 SV_WriteEntitiesToClient
 
 =============
@@ -606,6 +632,7 @@ void SV_WriteEntitiesToClient (edict_t	*clent, sizebuf_t *msg)
 {
 	int		e, i;
 	int		bits;
+	int		modelindex;
 	byte	*pvs;
 	vec3_t	org;
 	float	miss;
@@ -696,7 +723,8 @@ void SV_WriteEntitiesToClient (edict_t	*clent, sizebuf_t *msg)
 		if ((ent->baseline.effects ^ (int)ent->v.effects) & pr_effects_mask)
 			bits |= U_EFFECTS;
 
-		if (ent->baseline.modelindex != ent->v.modelindex)
+		modelindex = SV_CharacterModelIndex (ent);
+		if (ent->baseline.modelindex != modelindex)
 			bits |= U_MODEL;
 
 		//johnfitz -- alpha
@@ -726,7 +754,7 @@ void SV_WriteEntitiesToClient (edict_t	*clent, sizebuf_t *msg)
 			if (ent->baseline.alpha != ent->alpha) bits |= U_ALPHA;
 			if (ent->baseline.scale != ent->scale) bits |= U_SCALE;
 			if (bits & U_FRAME && (int)ent->v.frame & 0xFF00) bits |= U_FRAME2;
-			if (bits & U_MODEL && (int)ent->v.modelindex & 0xFF00) bits |= U_MODEL2;
+			if (bits & U_MODEL && modelindex & 0xFF00) bits |= U_MODEL2;
 			if (ent->sendinterval) bits |= U_LERPFINISH;
 			if (bits >= 65536) bits |= U_EXTEND1;
 			if (bits >= 16777216) bits |= U_EXTEND2;
@@ -760,7 +788,7 @@ void SV_WriteEntitiesToClient (edict_t	*clent, sizebuf_t *msg)
 			MSG_WriteByte (msg,e);
 
 		if (bits & U_MODEL)
-			MSG_WriteByte (msg,	ent->v.modelindex);
+			MSG_WriteByte (msg,	modelindex);
 		if (bits & U_FRAME)
 			MSG_WriteByte (msg, ent->v.frame);
 		if (bits & U_COLORMAP)
@@ -790,7 +818,7 @@ void SV_WriteEntitiesToClient (edict_t	*clent, sizebuf_t *msg)
 		if (bits & U_FRAME2)
 			MSG_WriteByte(msg, (int)ent->v.frame >> 8);
 		if (bits & U_MODEL2)
-			MSG_WriteByte(msg, (int)ent->v.modelindex >> 8);
+			MSG_WriteByte(msg, modelindex >> 8);
 		if (bits & U_LERPFINISH)
 			MSG_WriteByte(msg, (byte)(Q_rint((ent->v.nextthink-sv.time)*255)));
 		//johnfitz
@@ -1283,6 +1311,98 @@ int SV_ModelIndex (const char *name)
 
 /*
 ================
+Character_ValidName
+
+Character names become paths, so only lowercase letters, digits and _ are allowed.
+================
+*/
+qboolean Character_ValidName (const char *name)
+{
+	int		i;
+
+	for (i = 0; name[i]; i++)
+		if (i >= MAX_CHARACTER_NAME - 1 || !(q_islower(name[i]) || q_isdigit(name[i]) || name[i] == '_'))
+			return false;
+	return i > 0;
+}
+
+qboolean SV_CharacterAvailable (const char *name)
+{
+	int		i;
+
+	for (i = 0; i < sv.numcharacters; i++)
+		if (!strcmp (sv.characters[i].name, name))
+			return true;
+	return false;
+}
+
+static int SV_FindModelIndex (const char *name)
+{
+	int		i;
+
+	for (i = 1; i < MAX_MODELS && sv.model_precache[i]; i++)
+		if (!strcmp (sv.model_precache[i], name))
+			return i;
+	return 0;
+}
+
+/*
+================
+SV_PrecacheCharacters
+
+Adds the models of every character in characters/list.txt whose files exist.
+Runs after QuakeC has precached its models, while the server is still loading.
+================
+*/
+static void SV_PrecacheCharacters (void)
+{
+	char		*list;
+	const char	*data;
+	character_t	*c;
+	int			slot;
+
+	sv.playermodelindex = SV_FindModelIndex ("progs/player.mdl");
+	sv.headmodelindex = SV_FindModelIndex ("progs/h_player.mdl");
+	if (!sv.playermodelindex)
+		return;
+	list = (char *) COM_LoadMallocFile ("characters/list.txt", NULL);
+	if (!list)
+		return;
+	for (data = COM_Parse (list); data && sv.numcharacters < MAX_CHARACTERS; data = COM_Parse (data))
+	{
+		if (!Character_ValidName (com_token) || SV_CharacterAvailable (com_token))
+			continue;
+		c = &sv.characters[sv.numcharacters];
+		q_strlcpy (c->name, com_token, sizeof(c->name));
+		q_snprintf (c->model, sizeof(c->model), "characters/%s/player.mdl", c->name);
+		q_snprintf (c->head, sizeof(c->head), "characters/%s/h_player.mdl", c->name);
+		if (!COM_FileExists (c->model, NULL) || !COM_FileExists (c->head, NULL))
+		{
+			Con_Printf ("Character %s is missing its models\n", c->name);
+			continue;
+		}
+		for (slot = 1; slot < MAX_MODELS && sv.model_precache[slot]; slot++)
+			;
+		if (slot + 2 > (sv.protocol == PROTOCOL_NETQUAKE ? 256 : MAX_MODELS))
+			break;
+		sv.models[slot] = Mod_ForName (c->model, false);
+		sv.models[slot + 1] = Mod_ForName (c->head, false);
+		if (!sv.models[slot] || !sv.models[slot + 1])
+		{
+			sv.models[slot] = sv.models[slot + 1] = NULL;
+			continue;
+		}
+		sv.model_precache[slot] = c->model;
+		sv.model_precache[slot + 1] = c->head;
+		c->modelindex = slot;
+		c->headindex = slot + 1;
+		sv.numcharacters++;
+	}
+	free (list);
+}
+
+/*
+================
 SV_CreateBaseline
 ================
 */
@@ -1597,6 +1717,8 @@ void SV_SpawnServer (const char *server)
 	pr_global_struct->serverflags = svs.serverflags;
 
 	ED_LoadFromFile (sv.worldmodel->entities);
+
+	SV_PrecacheCharacters ();
 
 	sv.active = true;
 

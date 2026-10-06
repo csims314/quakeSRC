@@ -1,0 +1,24 @@
+{
+  "description": "Measurements of Nick's source photo (1792x2390, white background). The photo itself is not committed.",
+  "width": 1792,
+  "height": 2390,
+  "pixelsPerUnit": 205.3,
+  "center": [915, 903],
+  "front": { "x": 0, "y": 140, "width": 300, "height": 352, "pixelsPerTexel": 5.976 },
+  "hud": { "x": 80, "y": 230, "size": 1670, "texels": 96 },
+  "landmarks": {
+    "eyes": [[695, 905], [1135, 900]],
+    "glasses": { "left": 405, "right": 1390, "top": 805, "bottom": 1095, "bridge": [850, 985] },
+    "brows": 760,
+    "hairline": 330,
+    "noseTip": [925, 1140],
+    "nostrils": 1160,
+    "noseWidth": [760, 1085],
+    "mouth": [[700, 1345], [1115, 1355]],
+    "teeth": { "left": 770, "right": 1090, "top": 1340, "bottom": 1410 },
+    "lowerLip": 1435,
+    "chin": 1800,
+    "beardBottom": 1910,
+    "crown": 150
+  }
+}

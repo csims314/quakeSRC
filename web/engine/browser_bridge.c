@@ -30,7 +30,7 @@ EMSCRIPTEN_KEEPALIVE const char *Web_State(void)
         "\"signon\":%d,\"connectionId\":%d,\"serverActive\":%d,\"serverTime\":%.3f,\"connections\":%d,"
         "\"map\":\"%s\",\"coop\":%d,\"deathmatch\":%d,\"nomonsters\":%d,\"skill\":%d,"
         "\"totalMonsters\":%d,\"killedMonsters\":%d,\"intermission\":%d,"
-        "\"fragLimit\":%d,\"timeLimit\":%.3f,\"players\":[",
+        "\"fragLimit\":%d,\"timeLimit\":%.3f,\"character\":\"%s\",\"players\":[",
         cl.time, cls.state == ca_connected, cl.paused, cl.stats[STAT_HEALTH], cl.stats[STAT_AMMO],
         origin[0], origin[1], origin[2], cl.viewangles[0], cl.viewangles[1], cl.viewangles[2],
         cls.signon, cls.netcon && cls.netcon->driver == 1 ? cls.netcon->socket : 0, sv.active, sv.time, net_activeconnections,
@@ -38,29 +38,33 @@ EMSCRIPTEN_KEEPALIVE const char *Web_State(void)
         (int)coop.value, (int)deathmatch.value, sv.nomonsters, current_skill,
         sv.active && pr_global_struct ? (int)pr_global_struct->total_monsters : cl.stats[STAT_TOTALMONSTERS],
         sv.active && pr_global_struct ? (int)pr_global_struct->killed_monsters : cl.stats[STAT_MONSTERS],
-        cl.intermission, (int)fraglimit.value, timelimit.value);
+        cl.intermission, (int)fraglimit.value, timelimit.value,
+        Character_ValidName(cl_character.string) ? cl_character.string : "");
     length = strlen(state);
     for (i = 0; i < (sv.active ? svs.maxclients : cl.maxclients); i++) {
         const vec_t *position;
-        char name[512];
+        char name[512], character[MAX_CHARACTER_NAME] = "", model[2 * MAX_QPATH] = "";
         int frags;
         if (sv.active) {
             if (!svs.clients[i].active || !svs.clients[i].spawned) continue;
             position = svs.clients[i].edict->v.origin;
             Web_JsonString(name, sizeof(name), svs.clients[i].name);
             frags = (int)svs.clients[i].edict->v.frags;
+            if (Character_ValidName(svs.clients[i].character)) q_strlcpy(character, svs.clients[i].character, sizeof(character));
         } else {
             if ((!cl_entities || i + 1 >= cl.num_entities || !cl_entities[i + 1].model) &&
                 (!cl.scores || !cl.scores[i].name[0])) continue;
             position = cl_entities && i + 1 < cl.num_entities ? cl_entities[i + 1].origin : vec3_origin;
             Web_JsonString(name, sizeof(name), cl.scores ? cl.scores[i].name : "");
             frags = cl.scores ? cl.scores[i].frags : 0;
+            if (cl_entities && i + 1 < cl.num_entities && cl_entities[i + 1].model)
+                Web_JsonString(model, sizeof(model), cl_entities[i + 1].model->name);
         }
-        if (length + sizeof(name) + 160 >= sizeof(state)) break;
+        if (length + sizeof(name) + sizeof(model) + 200 >= sizeof(state)) break;
         if (state[length - 1] != '[') state[length++] = ',';
         length += q_snprintf(state + length, sizeof(state) - length,
-            "{\"slot\":%d,\"name\":\"%s\",\"frags\":%d,\"origin\":[%.3f,%.3f,%.3f]}",
-            i + 1, name, frags, position[0], position[1], position[2]);
+            "{\"slot\":%d,\"name\":\"%s\",\"frags\":%d,\"origin\":[%.3f,%.3f,%.3f],\"character\":\"%s\",\"model\":\"%s\"}",
+            i + 1, name, frags, position[0], position[1], position[2], character, model);
     }
     q_strlcpy(state + length, "]}", sizeof(state) - length);
     return state;

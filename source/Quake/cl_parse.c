@@ -402,6 +402,12 @@ void CL_ParseServerInfo (void)
 	for (i = 1; i < nummodels; i++)
 	{
 		cl.model_precache[i] = Mod_ForName (model_precache[i], false);
+		if (cl.model_precache[i] == NULL && !strncmp (model_precache[i], "characters/", 11))
+		{
+			// a character this client lacks: show those players as the original player
+			Con_Printf ("Missing %s, using the original player\n", model_precache[i]);
+			cl.model_precache[i] = Mod_ForName (strstr (model_precache[i], "/h_player.mdl") ? "progs/h_player.mdl" : "progs/player.mdl", false);
+		}
 		if (cl.model_precache[i] == NULL)
 		{
 			Host_Error ("Model %s not found", model_precache[i]);

@@ -316,6 +316,57 @@ qpic_t	*Draw_CachePic (const char *path)
 
 /*
 ================
+Draw_TryCachePic
+
+Like Draw_CachePic, but returns NULL when nothing is found. A detailed image
+(path + .tga or .png) is preferred and drawn at the given logical size; otherwise
+path + .lmp is used at its own size.
+================
+*/
+qpic_t *Draw_TryCachePic (const char *path, int width, int height)
+{
+	cachepic_t	*pic;
+	int			i, mark, imagewidth, imageheight;
+	byte		*data;
+	char		lump[MAX_QPATH];
+	glpic_t		gl;
+
+	for (pic=menu_cachepics, i=0 ; i<menu_numcachepics ; pic++, i++)
+	{
+		if (!strcmp (path, pic->name))
+			return &pic->pic;
+	}
+	if (menu_numcachepics == MAX_CACHED_PICS)
+		return NULL;
+
+	mark = Hunk_LowMark ();
+	data = Image_LoadImage (path, &imagewidth, &imageheight);
+	if (data)
+	{
+		gl.gltexture = TexMgr_LoadImage (NULL, path, imagewidth, imageheight, SRC_RGBA, data, path, 0,
+										  TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP | TEXPREF_MIPMAP);
+		Hunk_FreeToLowMark (mark);
+		gl.sl = 0;
+		gl.sh = (float)imagewidth/(float)TexMgr_PadConditional(imagewidth);
+		gl.tl = 0;
+		gl.th = (float)imageheight/(float)TexMgr_PadConditional(imageheight);
+		pic = &menu_cachepics[menu_numcachepics++];
+		q_strlcpy (pic->name, path, sizeof(pic->name));
+		pic->pic.width = width;
+		pic->pic.height = height;
+		memcpy (pic->pic.data, &gl, sizeof(glpic_t));
+		return &pic->pic;
+	}
+	Hunk_FreeToLowMark (mark);
+
+	q_snprintf (lump, sizeof(lump), "%s.lmp", path);
+	if (!COM_FileExists (lump, NULL))
+		return NULL;
+	return Draw_CachePic (lump);
+}
+
+/*
+================
 Draw_MakePic -- johnfitz -- generate pics from internal data
 ================
 */

@@ -59,6 +59,23 @@ The same public flow passed on October 6, 2026 against the GCE production image 
 
 GitHub Actions passed all twelve unit/configuration tests and startup checks for both production rooms. The GCE game container used approximately 134 MiB with 312 MiB available on the VM during the check, and the pre-existing WebTransportArena process remained running. The public tests use independent browser sessions on one computer; they do not establish eight-player load capacity or verify multiple client devices. Default 20-frag/10-minute rules were read back from the production engine; shortened round limits and restart behavior were exercised locally.
 
+## Player character verification
+
+On October 6, 2026, `npm run test:characters` passed with two isolated Chromium sessions against the rebuilt engine on local ports 3106/4449. One player chose Nick on the launch screen; the other stayed the Ranger.
+
+| Flow | Result |
+|---|---|
+| Launch screen | Both character cards appeared; choosing Nick survived a page reload. |
+| Sign-on | The co-op server recorded slot 1 as `nick` and slot 2 as `ranger`. |
+| Other players' view | The Ranger's client rendered slot 1 with `characters/nick/player.mdl`; Nick's client rendered the Ranger with `progs/player.mdl`. Screenshots show Nick's face, glasses, beard and hair in E1M1 lighting. |
+| Live switching | Switching to the Ranger and back from the toolbar menu reached the other client both times. |
+| Corpse | After a suicide and immediate co-op respawn, the corpse replicated to the other client with Nick's model. |
+| Errors | Neither client reported JavaScript errors, missing character files or PNG decoding errors. |
+
+`npm test` adds six character checks. They cover manifest validation and the engine's model limits (143 frames, vertex, triangle and skin bounds). They also check that the head avoids recoloured and fullbright palette entries and that the 28 status-bar faces are complete. Installation and the committed assets matching a fresh, deterministic build are covered too. With the character engine build, `npm run test:multiplayer` passed all ten existing checks. The gibbed-head substitution is covered by code review, not by an automated gib.
+
+`npm run test:deathmatch` is timing-sensitive at the E1M1 courtyard stairs. Its scripted walk can stall on a stair lip at y=2384, and it gets 12 timed attempts to jump past. It passed with the character engine in a traced run. In a traced run with the previous engine, the walker stalled at the same lip for two attempts before a later jump got through. Across all runs, the previous engine passed 4 of 4 and the character engine 1 of 4, so a failure at that step means the walk needs another attempt, not a broken engine. Client frame rate was identical with both engines (240 fps, worst frame 4-5 ms).
+
 ## Public Google Compute Engine verification
 
 Verified on October 6, 2026 at [quake.34.10.23.32.sslip.io](https://quake.34.10.23.32.sslip.io), using two isolated Chromium browser sessions on the development computer across the public Internet to the GCE VM. This is a public connection test, not a test of two separate client computers or eight simultaneous players.

@@ -2857,6 +2857,10 @@ static void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
 	if (loadmodel->flags & MF_HOLEY)
 		texflags |= TEXPREF_ALPHA;
 
+	// character skins carry far more detail than id's, so filter them at a distance
+	if (!q_strncasecmp (loadmodel->name, "characters/", 11))
+		texflags |= TEXPREF_MIPMAP;
+
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (pskintype->type == ALIAS_SKIN_SINGLE)

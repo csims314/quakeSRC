@@ -2,6 +2,8 @@
 
 Public browser co-op: [Play Quake](https://quake.34.10.23.32.sslip.io). Click **Launch Quake**, release the mouse with **Esc**, then click **Join co-op**. Share the same link with other players to fight the original shareware episode's monsters together.
 
+Choose your character on the launch screen: the original **Ranger**, or **Nick**. Other players see your choice. See [player characters](web/README.md#player-characters).
+
 Public deathmatch: [Play deathmatch](https://quake.34.10.23.32.sslip.io/?mode=deathmatch). Launch, press **Esc**, then **Join deathmatch**. Up to eight players fight on E1M1 with no monsters, a 20-frag limit and 10-minute rounds. Hold **Tab** for scores; press fire after dying to respawn. Co-op runs in its own room at the same time.
 
 For the browser version, double-click `launch-web.cmd`. It supports local single player and WebTransport multiplayer. Click **Join co-op** after launching to fight the original monsters with up to eight players; other browsers or tabs can join the same server. See [web/README.md](web/README.md) for controls, saves, difficulty, deathmatch, and rebuild instructions. The native version is still available through `launch.cmd`.

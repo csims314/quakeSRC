@@ -6,6 +6,7 @@ import { isIP } from 'node:net';
 import selfsigned from 'selfsigned';
 import { Http3Server, quicheLoaded } from '@fails-components/webtransport';
 import { createQuakeTransport } from './dist/network.js';
+import { validateManifest, installCharacters } from './dist/characters.js';
 import { multiplayerRules, roomStartup } from './rooms.mjs';
 
 const MAX_PLAYERS = 8;
@@ -71,6 +72,10 @@ async function startRoom(project, definition, options) {
     catch (error) { if (name === 'pak0.pak' || error.code !== 'ENOENT') throw error; }
   }
   engine.FS.writeFile('/quake/quakespasm.pak', await readFile(path.join(project, 'runtime', 'quakespasm.pak')));
+  // Every client installs the same characters, so the server can offer them all.
+  const characters = path.join(project, 'web', 'dist', 'characters');
+  const manifest = validateManifest(JSON.parse(await readFile(path.join(characters, 'manifest.json'), 'utf8')));
+  await installCharacters(engine.FS, manifest, (id, file) => readFile(path.join(characters, id, file)));
   for (const file of options.editorFiles || []) {
     if (!/^maps\/[a-zA-Z0-9_]+\.(bsp|lit)$/.test(file.name)) throw new Error('Invalid editor map artifact');
     engine.FS.mkdirTree('/user/id1/maps');

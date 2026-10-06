@@ -45,6 +45,12 @@ When `npm start` runs in a terminal, use room prefixes for console commands, suc
 
 Ports can be changed with `QUAKE_WEB_PORT` and `QUAKE_MULTIPLAYER_PORT`. When stopping a background server manually, use the PID in `web/server.pid` only after checking that its command line points to this project's `web/server.mjs`.
 
+## Player characters
+
+Choose **Ranger** (the original player) or **Nick** on the launch screen, or later from the toolbar's **Character** menu. This browser remembers the choice. Other players see your character in co-op and deathmatch, along with your corpse and gibbed head. Your status-bar face changes too; raise the HUD scale with `scr_sbarscale 2` or `3` to see it in full detail. In first person, `chase_active 1` shows your own model. Shirt and pants colours recolour the character's armour, just as they do for the Ranger.
+
+The console command is `character nick` or `character ranger`. Characters work with the shareware and registered data. Nick's body and animation come from [LibreQuake](https://github.com/lavenderdotpet/LibreQuake) (BSD license); the credits page in the launcher lists the details. See [tools/characters/README.md](../tools/characters/README.md) for how characters are built and added. `npm run test:characters` verifies them with two browsers.
+
 ## Engine and build
 
 This is the project's QuakeSpasm C engine compiled to WebAssembly, using GL4ES to translate its OpenGL renderer to WebGL. It is not a JavaScript recreation. Rendering, audio scheduling, browser pointer lock, storage, and network capabilities differ from native applications; absolute pixel/timing parity is not guaranteed. The native prebuilt runtime is 0.96.3 and the installed development sources identify as 0.97.0.

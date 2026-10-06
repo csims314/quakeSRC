@@ -1581,6 +1581,44 @@ static void Host_Color_f(void)
 
 /*
 ==================
+Host_Character_f
+
+Chooses the player model other players see. "ranger" is the original player.
+==================
+*/
+static void Host_Character_f (void)
+{
+	const char	*name;
+
+	if (Cmd_Argc() == 1)
+	{
+		Con_Printf ("\"character\" is \"%s\"\n", cl_character.string);
+		return;
+	}
+
+	name = Cmd_Argv(1);
+	if (!Character_ValidName (name))
+	{
+		if (cmd_source == src_command)
+			Con_Printf ("Character names use only a-z, 0-9 and _\n");
+		return;
+	}
+
+	if (cmd_source == src_command)
+	{
+		Cvar_Set ("_cl_character", name);
+		if (cls.state == ca_connected)
+			Cmd_ForwardToServer ();
+		return;
+	}
+
+	q_strlcpy (host_client->character, name, sizeof(host_client->character));
+	if (strcmp (name, "ranger") && !SV_CharacterAvailable (name))
+		SV_ClientPrintf ("Character \"%s\" isn't available on this server.\n", name);
+}
+
+/*
+==================
 Host_Kill_f
 ==================
 */
@@ -2381,6 +2419,7 @@ void Host_InitCommands (void)
 	Cmd_AddCommand ("say_team", Host_Say_Team_f);
 	Cmd_AddCommand ("tell", Host_Tell_f);
 	Cmd_AddCommand ("color", Host_Color_f);
+	Cmd_AddCommand ("character", Host_Character_f);
 	Cmd_AddCommand ("kill", Host_Kill_f);
 	Cmd_AddCommand ("pause", Host_Pause_f);
 	Cmd_AddCommand ("spawn", Host_Spawn_f);

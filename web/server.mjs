@@ -23,7 +23,7 @@ if (multiplayer && (process.stdin.isTTY || process.env.QUAKE_SERVER_CONSOLE === 
     multiplayer.command(scoped ? scoped[2] : command, scoped?.[1]);
   });
 }
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.pak': 'application/octet-stream', '.ico': 'image/x-icon' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.pak': 'application/octet-stream', '.ico': 'image/x-icon', '.png': 'image/png' };
 const assets = {
   '/assets/pak0.pak': path.join(project, 'runtime', 'id1', 'pak0.pak'),
   '/assets/pak1.pak': path.join(project, 'runtime', 'id1', 'pak1.pak'),

@@ -46,6 +46,15 @@ static qpic_t		*sb_face_quad;
 static qpic_t		*sb_face_invuln;
 static qpic_t		*sb_face_invis_invuln;
 
+// faces of the player's character, from characters/<name>/face*.png or .lmp
+typedef struct
+{
+	qpic_t	*faces[5][2];
+	qpic_t	*invis, *quad, *invuln, *invis_invuln;
+} sbarfaces_t;
+static sbarfaces_t	sb_characterfaces;
+static char			sb_character[MAX_CHARACTER_NAME];	// "" = original faces
+
 static qboolean	sb_showscores;
 
 int		sb_lines;			// scan lines to draw
@@ -189,6 +198,7 @@ void Sbar_LoadPics (void)
 	sb_face_invuln = Draw_PicFromWad ("face_invul2");
 	sb_face_invis_invuln = Draw_PicFromWad ("face_inv2");
 	sb_face_quad = Draw_PicFromWad ("face_quad");
+	sb_character[0] = 0;	// cached character pictures were flushed
 
 	sb_sbar = Draw_PicFromWad ("sbar");
 	sb_ibar = Draw_PicFromWad ("ibar");
@@ -790,6 +800,65 @@ void Sbar_DrawFrags (void)
 //=============================================================================
 
 
+static qpic_t *Sbar_CharacterPic (const char *name, qpic_t *original)
+{
+	qpic_t	*pic = Draw_TryCachePic (va("characters/%s/%s", sb_character, name), original->width, original->height);
+	return pic ? pic : original;
+}
+
+/*
+===============
+Sbar_Faces
+
+The faces match the player model the server shows for this player, so a
+character the server doesn't offer keeps the original faces.
+===============
+*/
+static sbarfaces_t *Sbar_Faces (void)
+{
+	static sbarfaces_t	original;
+	const char	*model, *end;
+	char		character[MAX_CHARACTER_NAME];
+	int			i;
+
+	for (i = 0; i < 5; i++)
+	{
+		original.faces[i][0] = sb_faces[i][0];
+		original.faces[i][1] = sb_faces[i][1];
+	}
+	original.invis = sb_face_invis;
+	original.quad = sb_face_quad;
+	original.invuln = sb_face_invuln;
+	original.invis_invuln = sb_face_invis_invuln;
+
+	if (cl.viewentity > 0 && cl.viewentity < cl.num_entities && cl_entities[cl.viewentity].model)
+	{
+		model = cl_entities[cl.viewentity].model->name;
+		character[0] = 0;
+		if (!strncmp (model, "characters/", 11) && (end = strchr (model + 11, '/')) && !strcmp (end, "/player.mdl") &&
+			end - (model + 11) < MAX_CHARACTER_NAME)
+			q_strlcpy (character, model + 11, end - (model + 11) + 1);
+		// invisibility, gib heads and other temporary models keep the current faces
+		if ((character[0] || !strcmp (model, "progs/player.mdl")) && strcmp (character, sb_character))
+		{
+			q_strlcpy (sb_character, character, sizeof(sb_character));
+			if (sb_character[0])
+			{
+				for (i = 0; i < 5; i++)
+				{
+					sb_characterfaces.faces[i][0] = Sbar_CharacterPic (va("face%i", 5 - i), sb_faces[i][0]);
+					sb_characterfaces.faces[i][1] = Sbar_CharacterPic (va("face_p%i", 5 - i), sb_faces[i][1]);
+				}
+				sb_characterfaces.invis = Sbar_CharacterPic ("face_invis", sb_face_invis);
+				sb_characterfaces.quad = Sbar_CharacterPic ("face_quad", sb_face_quad);
+				sb_characterfaces.invuln = Sbar_CharacterPic ("face_invul2", sb_face_invuln);
+				sb_characterfaces.invis_invuln = Sbar_CharacterPic ("face_inv2", sb_face_invis_invuln);
+			}
+		}
+	}
+	return sb_character[0] ? &sb_characterfaces : &original;
+}
+
 /*
 ===============
 Sbar_DrawFace
@@ -798,6 +867,7 @@ Sbar_DrawFace
 void Sbar_DrawFace (void)
 {
 	int	f, anim;
+	sbarfaces_t	*faces;
 
 // PGM 01/19/97 - team color drawing
 // PGM 03/02/97 - fixed so color swatch only appears in CTF modes
@@ -848,25 +918,26 @@ void Sbar_DrawFace (void)
 	}
 // PGM 01/19/97 - team color drawing
 
+	faces = Sbar_Faces ();
 	if ((cl.items & (IT_INVISIBILITY | IT_INVULNERABILITY))
 			== (IT_INVISIBILITY | IT_INVULNERABILITY))
 	{
-		Sbar_DrawPic (112, 0, sb_face_invis_invuln);
+		Sbar_DrawPic (112, 0, faces->invis_invuln);
 		return;
 	}
 	if (cl.items & IT_QUAD)
 	{
-		Sbar_DrawPic (112, 0, sb_face_quad );
+		Sbar_DrawPic (112, 0, faces->quad);
 		return;
 	}
 	if (cl.items & IT_INVISIBILITY)
 	{
-		Sbar_DrawPic (112, 0, sb_face_invis );
+		Sbar_DrawPic (112, 0, faces->invis);
 		return;
 	}
 	if (cl.items & IT_INVULNERABILITY)
 	{
-		Sbar_DrawPic (112, 0, sb_face_invuln);
+		Sbar_DrawPic (112, 0, faces->invuln);
 		return;
 	}
 
@@ -884,7 +955,7 @@ void Sbar_DrawFace (void)
 	}
 	else
 		anim = 0;
-	Sbar_DrawPic (112, 0, sb_faces[f][anim]);
+	Sbar_DrawPic (112, 0, faces->faces[f][anim]);
 }
 
 /*

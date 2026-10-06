@@ -19,6 +19,9 @@
           <option value="deathmatch">Deathmatch</option>
         </select>
       </label>
+      <label class="mode-label" for="character"><span id="character-portrait" aria-hidden="true"></span>Character
+        <select id="character"><option value="ranger">Ranger</option></select>
+      </label>
       <button id="join" disabled>Join co-op</button>
       <button id="leave" hidden>Leave multiplayer</button>
       <button id="fullscreen">Fullscreen</button>
@@ -35,6 +38,7 @@
           <p class="eyebrow">THE ORIGINAL GAME. IN YOUR BROWSER.</p>
           <h1>Enter the slipgate.</h1>
           <p>QuakeSpasm, the original levels, and the original game logic.<br>Play the installed shareware episode or load your own Quake PAK files.</p>
+          <fieldset class="characters"><legend>Choose your character</legend><div id="character-cards"></div></fieldset>
           <button id="start" class="primary">Launch Quake <span>↗</span></button>
           <label class="pak-label">Use your purchased game files <input id="paks" type="file" accept=".pak" multiple></label>
           <p id="loading" role="status" aria-live="polite">Saves stay in this browser. Export a backup to keep them.</p>
@@ -59,7 +63,7 @@
       <p>This build runs QuakeSpasm through WebAssembly and <a href="https://github.com/ptitSeb/gl4es">GL4ES</a>. The installed shareware data has no CD soundtrack.</p>
       <form id="command-form"><label for="command">Engine console command</label><div><input id="command" placeholder="e.g. map e1m1" autocomplete="off"><button id="send-command" disabled>Run</button></div></form>
       <details><summary>Engine log</summary><pre id="log"></pre></details>
-      <p class="licenses"><a href="https://github.com/csims314/quakeSRC">Project source</a> · <a href="engine/LICENSE.txt">QuakeSpasm GPL license</a> · <a href="engine/GL4ES-LICENSE.txt">GL4ES license</a></p>
+      <p class="licenses"><a href="https://github.com/csims314/quakeSRC">Project source</a> · <a href="engine/LICENSE.txt">QuakeSpasm GPL license</a> · <a href="engine/GL4ES-LICENSE.txt">GL4ES license</a> · <a href="characters/CREDITS.txt">Character credits</a></p>
     </section>
   </main>
   <footer><span>QUAKESPASM / WEBASSEMBLY + WEBGL</span><span id="save-status">LOCAL SINGLE PLAYER</span></footer>

@@ -40,6 +40,20 @@ typedef struct
 
 typedef enum {ss_loading, ss_active} server_state_t;
 
+// Player characters: alternative player and gib head models, listed in
+// characters/list.txt and stored as characters/<name>/player.mdl and h_player.mdl.
+#define	MAX_CHARACTERS		16
+#define	MAX_CHARACTER_NAME	16
+
+typedef struct
+{
+	char	name[MAX_CHARACTER_NAME];
+	char	model[MAX_QPATH];
+	char	head[MAX_QPATH];
+	int		modelindex;
+	int		headindex;
+} character_t;
+
 typedef struct
 {
 	qboolean	active;				// false if only a net client
@@ -79,6 +93,11 @@ typedef struct
 
 	unsigned	protocol; //johnfitz
 	unsigned	protocolflags;
+
+	character_t	characters[MAX_CHARACTERS];	// precached at spawn
+	int			numcharacters;
+	int			playermodelindex;	// progs/player.mdl and progs/h_player.mdl,
+	int			headmodelindex;		// which characters replace on the wire
 } server_t;
 
 
@@ -115,6 +134,7 @@ typedef struct client_s
 	edict_t			*edict;				// EDICT_NUM(clientnum+1)
 	char			name[32];			// for printing to other people
 	int				colors;
+	char			character[MAX_CHARACTER_NAME];	// requested player character
 
 	float			ping_times[NUM_PING_TIMES];
 	int				num_pings;			// ping_times[num_pings%NUM_PING_TIMES]
@@ -219,6 +239,8 @@ void SV_ClearDatagram (void);
 void SV_ReserveSignonSpace (int numbytes);
 
 int SV_ModelIndex (const char *name);
+qboolean SV_CharacterAvailable (const char *name);
+qboolean Character_ValidName (const char *name);
 
 void SV_SetIdealPitch (void);
 

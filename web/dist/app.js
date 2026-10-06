@@ -1,4 +1,5 @@
 import { createQuakeTransport, connectQuake } from './network.js';
+import { DEFAULT_CHARACTER, validateManifest, installCharacters } from './characters.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('canvas');
@@ -62,6 +63,49 @@ $('mode').addEventListener('change', () => {
   showSelectedRoom();
 });
 const roomTimer = window.setInterval(() => { if (!document.hidden) refreshRooms().catch(() => {}); }, 15000);
+
+// Player characters: the choice is remembered in this browser and sent to every server joined.
+let characters = [{ id: DEFAULT_CHARACTER, name: 'Ranger', description: 'The original Quake marine.' }];
+let character = DEFAULT_CHARACTER;
+try { character = localStorage.getItem('quake.character') || DEFAULT_CHARACTER; } catch {}
+function portrait(choice, className = 'portrait') {
+  if (!choice.portrait) return Object.assign(document.createElement('span'), { className: `${className} sigil-portrait`, textContent: 'Ϙ' });
+  return Object.assign(document.createElement('img'), { className, src: choice.portrait, alt: '' });
+}
+// The remembered choice stays pending until the character list has loaded.
+const currentCharacter = () => characters.find(choice => choice.id === character) || characters[0];
+function renderCharacters() {
+  const current = currentCharacter();
+  $('character').replaceChildren(...characters.map(choice => new Option(choice.name, choice.id, false, choice === current)));
+  $('character-portrait').replaceChildren(portrait(current, 'portrait small'));
+  $('character-cards').replaceChildren(...characters.map(choice => {
+    const card = Object.assign(document.createElement('label'), { className: 'character-card' });
+    const input = Object.assign(document.createElement('input'), { type: 'radio', name: 'character-card', value: choice.id, checked: choice === current });
+    input.addEventListener('change', () => chooseCharacter(choice.id));
+    const text = Object.assign(document.createElement('span'), { className: 'card-text' });
+    text.append(Object.assign(document.createElement('strong'), { textContent: choice.name }), Object.assign(document.createElement('small'), { textContent: choice.description || '' }));
+    card.append(input, portrait(choice), text);
+    return card;
+  }));
+}
+function chooseCharacter(id) {
+  character = id;
+  try { localStorage.setItem('quake.character', id); } catch {}
+  renderCharacters();
+  command(`character ${currentCharacter().id}`);
+}
+const charactersReady = fetch('characters/manifest.json')
+  .then(response => (response.ok ? response.json() : Promise.reject(new Error('Character list unavailable'))))
+  .then(manifest => {
+    validateManifest(manifest);
+    characters = manifest.characters;
+    if (!characters.some(choice => choice.id === character)) character = DEFAULT_CHARACTER;
+    renderCharacters();
+    return manifest;
+  });
+charactersReady.catch(error => log(`Characters: ${error.message}`));
+renderCharacters();
+$('character').addEventListener('change', event => chooseCharacter(event.target.value));
 const transport = createQuakeTransport(event => {
   if (event.state === 'closed' && transport.snapshot().some(connection => connection.open)) return;
   $('network-status').textContent = event.state === 'ready' ? 'WebTransport connected. Joining the game…' : `Disconnected: ${event.reason}`;
@@ -94,7 +138,7 @@ function log(line) {
   if (String(line).includes('Quake Initialized')) {
     ready = true;
     window.setTimeout(() => {
-      command('stopdemo\nmap start');
+      command(`character ${currentCharacter().id}\nstopdemo\nmap start`);
       $('status').textContent = 'Running';
       $('cover').hidden = true;
       $('capture').hidden = Boolean(document.pointerLockElement);
@@ -211,6 +255,12 @@ async function start() {
     }
     const extras = await getAsset('quakespasm.pak');
     engine.FS.writeFile('/quake/quakespasm.pak', extras);
+    const manifest = await charactersReady.catch(() => null);
+    if (manifest) await installCharacters(engine.FS, manifest, async (id, file) => {
+      const response = await fetch(`characters/${id}/${file}`);
+      if (!response.ok) throw new Error(`Missing character file ${id}/${file}`);
+      return new Uint8Array(await response.arrayBuffer());
+    });
     // Use original gameplay; only supply desktop browser-friendly input defaults.
     if (!engine.FS.analyzePath('/user/id1/config.cfg').exists) {
       engine.FS.writeFile('/user/id1/config.cfg', 'bind w +forward\nbind s +back\nbind a +moveleft\nbind d +moveright\nbind SPACE +jump\nbind MOUSE1 +attack\nbind TAB +showscores\n+mlook\n');

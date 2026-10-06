@@ -1834,8 +1834,10 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 		else	/* check a file in the directory tree */
 		{
 			if (!registered.value)
-			{ /* if not a registered version, don't ever go beyond base */
-				if ( strchr (filename, '/') || strchr (filename,'\\'))
+			{ /* if not a registered version, don't ever go beyond base, except
+			   * for player characters: original models and pictures, no id data */
+				if (( strchr (filename, '/') || strchr (filename,'\\')) &&
+					(q_strncasecmp (filename, "characters/", 11) || strstr (filename, "..") || strchr (filename, '\\')))
 					continue;
 			}
 

@@ -550,6 +550,8 @@ nextmsg:
 					ret = 1;
 				else if (q_strncasecmp(s, "color", 5) == 0)
 					ret = 1;
+				else if (q_strncasecmp(s, "character", 9) == 0)
+					ret = 1;
 				else if (q_strncasecmp(s, "kill", 4) == 0)
 					ret = 1;
 				else if (q_strncasecmp(s, "pause", 5) == 0)

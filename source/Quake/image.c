@@ -27,7 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define STB_IMAGE_WRITE_STATIC
 #include "stb_image_write.h"
 
-#define LODEPNG_NO_COMPILE_DECODER
 #define LODEPNG_NO_COMPILE_CPP
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS
 #define LODEPNG_NO_COMPILE_ERROR_TEXT
@@ -71,6 +70,44 @@ static inline int Buf_GetC(stdio_buffer_t *buf)
 
 /*
 ============
+Image_LoadPNG
+
+decodes a whole PNG file into hunk allocated RGBA data
+============
+*/
+static byte *Image_LoadPNG (FILE *f, int *width, int *height)
+{
+	byte		*file, *decoded = NULL, *data = NULL;
+	unsigned	w, h, error;
+	int			size = com_filesize;
+
+	file = (byte *) malloc (size);
+	if (!file || fread (file, 1, size, f) != (size_t)size)
+	{
+		free (file);
+		fclose (f);
+		return NULL;
+	}
+	fclose (f);
+	error = lodepng_decode32 (&decoded, &w, &h, file, size);
+	free (file);
+	if (error)
+		Con_Printf ("Image_LoadPNG: %s: error %u\n", loadfilename, error);
+	else if (w > 4096 || h > 4096)
+		Con_Printf ("Image_LoadPNG: %s is too large\n", loadfilename);
+	else
+	{
+		data = (byte *) Hunk_Alloc (w * h * 4);
+		memcpy (data, decoded, w * h * 4);
+		*width = w;
+		*height = h;
+	}
+	lodepng_free (decoded);
+	return data;
+}
+
+/*
+============
 Image_LoadImage
 
 returns a pointer to hunk allocated RGBA data
@@ -86,6 +123,11 @@ byte *Image_LoadImage (const char *name, int *width, int *height)
 	COM_FOpenFile (loadfilename, &f, NULL);
 	if (f)
 		return Image_LoadTGA (f, width, height);
+
+	q_snprintf (loadfilename, sizeof(loadfilename), "%s.png", name);
+	COM_FOpenFile (loadfilename, &f, NULL);
+	if (f)
+		return Image_LoadPNG (f, width, height);
 
 	q_snprintf (loadfilename, sizeof(loadfilename), "%s.pcx", name);
 	COM_FOpenFile (loadfilename, &f, NULL);
