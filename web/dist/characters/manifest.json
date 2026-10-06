@@ -42,6 +42,44 @@
         "h_player.mdl",
         "player.mdl"
       ]
+    },
+    {
+      "id": "chris",
+      "name": "Chris",
+      "description": "Short curls, blue eyes and a familiar face.",
+      "portrait": "characters/chris/face1.png",
+      "files": [
+        "face1.lmp",
+        "face1.png",
+        "face2.lmp",
+        "face2.png",
+        "face3.lmp",
+        "face3.png",
+        "face4.lmp",
+        "face4.png",
+        "face5.lmp",
+        "face5.png",
+        "face_inv2.lmp",
+        "face_inv2.png",
+        "face_invis.lmp",
+        "face_invis.png",
+        "face_invul2.lmp",
+        "face_invul2.png",
+        "face_p1.lmp",
+        "face_p1.png",
+        "face_p2.lmp",
+        "face_p2.png",
+        "face_p3.lmp",
+        "face_p3.png",
+        "face_p4.lmp",
+        "face_p4.png",
+        "face_p5.lmp",
+        "face_p5.png",
+        "face_quad.lmp",
+        "face_quad.png",
+        "h_player.mdl",
+        "player.mdl"
+      ]
     }
   ]
 }

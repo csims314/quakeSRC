@@ -541,6 +541,8 @@ export function exportMap(p) {
     '"classname" "worldspawn"',
     '"mapversion" "220"',
     '"wad" "textures.wad"',
+    // Like the original levels, name a CD track so the level's music plays.
+    '"sounds" "6"',
     `"message" "${text(p.title)}"`,
     ...p.brushes.filter((b) => !b.entityId).map(brush),
     "}",

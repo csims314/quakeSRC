@@ -12,13 +12,19 @@ Players choose a character on the launch screen or with the toolbar's **Characte
 - A model can end with a fine-vertex block (tagged `QSFV`, written by `lib/mdl.mjs` and read by `Mod_LoadAliasFineVertexes`) that stores every vertex's exact position and normal in every frame. A standard MDL rounds positions to 256 steps per axis and normals to 162 directions. On a photo-textured head that made the face slide over the head and its lighting flicker as the idle animation nodded it. Other engines ignore the block.
 - Character files are loose files under `characters/` in the game directory. They hold only original or freely licensed art and load with shareware or registered data.
 
-## Rebuilding Nick
+## Rebuilding the characters
 
-Nick's body and animation come from LibreQuake's BSD-licensed player model in `vendor/librequake/`. It has the same 143 animation frames as id's player. The head, its textures and the status-bar faces come from a photo of Nick, which is not committed.
+Nick and Chris share LibreQuake's BSD-licensed player body and its 143 animations. Each head and its status-bar faces come from that character's supplied photo. Full source photos are not committed; small derived head textures are in each character's `art/` directory.
 
 1. Only when the photo changes: convert it to PNG, update the measurements in `nick/photo.json`, and run `node tools/characters/nick/from-photo.mjs path/to/nick.png`. This writes the small source images in `nick/art/`.
 2. Run `npm run build:characters` to rebuild `web/dist/characters/`. The build is deterministic; `npm test` fails if the committed files are stale.
 3. Review the model without the game: `node tools/characters/preview.mjs web/dist/characters/nick/player.mdl head.png head`.
+
+For Chris, use `chris/photo.json` and `node tools/characters/chris/from-photo.mjs path/to/chris.png`, then run the same build command. Review with `node tools/characters/preview.mjs web/dist/characters/chris/player.mdl head.png head`. His face, ears and short curls are projected from the supplied photo; the unseen back uses samples of that photo's hair and neck. The lower neck blends with the chest during animation.
+
+The common assembler, photo mesh, photo sampling and HUD variants live in `lib/`. Character modules supply their measurements, depth profiles and texture treatment. Nick's output remains byte-for-byte unchanged by this sharing.
+
+Run `npm run test:characters` for two-browser model, character switching, corpse and HUD checks. Set `QUAKE_TEST_PUBLIC_URL` to use the same checks against the deployed game; its co-op room should be a fresh E1M1 with no other players.
 
 The head is a lofted mesh whose width at each height comes from the photo's silhouette, with designed depth profiles and facial relief (`nick/head.mjs`). The front of the head is projected from the photo.
 

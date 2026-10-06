@@ -17,7 +17,26 @@ function Test-QuakeServer {
             @($network.rooms | Where-Object { $_.id -eq 'deathmatch' -and $_.available }).Count -eq 1
     } catch { return $false }
 }
-if (-not (Test-QuakeServer)) {
+# A tracked server started before the server code or engine last changed keeps
+# answering with old routes (for example, no music list), so restart it.
+function Test-ServerCurrent {
+    $pidFile = Join-Path $projectRoot 'web\server.pid'
+    $trackedId = 0
+    if (-not (Test-Path -LiteralPath $pidFile) -or -not [int]::TryParse((Get-Content -LiteralPath $pidFile -Raw).Trim(), [ref]$trackedId)) { return $true }
+    $tracked = Get-Process -Id $trackedId -ErrorAction SilentlyContinue
+    if (-not $tracked) { return $true }
+    $code = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'web') -Filter '*.mjs') +
+        @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'web\editor') -Filter '*.mjs' -ErrorAction SilentlyContinue) +
+        @(Get-Item -LiteralPath (Join-Path $projectRoot 'web\dist\engine\quakespasm.wasm'))
+    $newest = ($code | Measure-Object -Property LastWriteTime -Maximum).Maximum
+    return $tracked.StartTime -ge $newest
+}
+$needsStart = -not (Test-QuakeServer)
+if (-not $needsStart -and -not (Test-ServerCurrent)) {
+    Write-Host 'Restarting the local server to load updated code.'
+    $needsStart = $true
+}
+if ($needsStart) {
     # Restart only the project's tracked server when upgrading an older build.
     $pidFile = Join-Path $projectRoot 'web\server.pid'
     if (Test-Path -LiteralPath $pidFile) {

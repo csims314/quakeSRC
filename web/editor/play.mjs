@@ -1,4 +1,5 @@
 import { createQuakeTransport, connectQuake } from "../dist/network.js";
+import { createMusicPlayer } from "../dist/music.js";
 const $ = (id) => document.getElementById(id),
   query = new URLSearchParams(location.search);
 const sessionId = query.get("session"),
@@ -102,10 +103,15 @@ async function start() {
     if (!mapFiles.some((f) => f.name.endsWith(".bsp")))
       throw new Error("Build has no playable map");
     started = true;
+    // The same streamed soundtrack as the game page: the player's own files,
+    // then runtime/id1/music on this server.
+    const music = createMusicPlayer({ log });
+    await music.load();
     engine = await createQuakeSpasm({
       canvas: $("game"),
       noInitialRun: true,
       quakeTransport: transport,
+      quakeMusic: music,
       locateFile: (name) => `../engine/${name}`,
       print: log,
       printErr: log,
@@ -125,6 +131,7 @@ async function start() {
       state: () => JSON.parse(engine.ccall("Web_State", "string", [], [])),
       world: () => JSON.parse(engine.ccall("Web_WorldState", "string", [], [])),
       network: transport,
+      music,
       logs,
       get ready() {
         return ready;
