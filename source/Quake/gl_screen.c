@@ -1070,6 +1070,11 @@ void SCR_UpdateScreen (void)
 	//FIXME: only call this when needed
 	SCR_TileClear ();
 
+#ifdef __EMSCRIPTEN__
+	extern qboolean Web_EditorActive(void);
+	if (Web_EditorActive()) { /* Editor owns all UI overlays. */ }
+	else
+#endif
 	if (scr_drawdialog) //new game confirm
 	{
 		if (con_forcedup)
@@ -1111,6 +1116,9 @@ void SCR_UpdateScreen (void)
 	V_UpdateBlend (); //johnfitz -- V_UpdatePalette cleaned up and renamed
 
 	GLSLGamma_GammaCorrect ();
+#ifdef __EMSCRIPTEN__
+	{ extern void Web_EditorCaptureFrame(void); Web_EditorCaptureFrame(); }
+#endif
 
 	GL_EndRendering ();
 }

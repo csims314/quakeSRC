@@ -673,6 +673,10 @@ R_DrawViewModel -- johnfitz -- gutted
 */
 void R_DrawViewModel (void)
 {
+#ifdef __EMSCRIPTEN__
+	extern qboolean Web_EditorActive(void);
+	if (Web_EditorActive()) return;
+#endif
 	if (!r_drawviewmodel.value || !r_drawentities.value || chase_active.value)
 		return;
 

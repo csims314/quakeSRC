@@ -1,5 +1,7 @@
 # Local QuakeSpasm setup
 
+For the browser level editor, double-click `launch-editor.cmd`. Its Unity-style workspace includes Scene/Game tabs, Hierarchy, Inspector, Project/Console panels, transform gizmos, multi-selection and reusable templates. The Scene uses Quake's own renderer and actual game assets, with isolated effects preview and solo/co-op playtests. Build rooms and ramps, paint stock or imported textures, and compile/export maps. Registration checks are currently removed from the development engine for testing with the installed shareware data. See [editor setup and controls](web/editor/README.md).
+
 Public browser co-op: [Play Quake](https://quake.34.10.23.32.sslip.io). Click **Launch Quake**, release the mouse with **Esc**, then click **Join co-op**. Share the same link with other players to fight the original shareware episode's monsters together.
 
 Public deathmatch: [Play deathmatch](https://quake.34.10.23.32.sslip.io/?mode=deathmatch). Launch, press **Esc**, then **Join deathmatch**. Up to eight players fight on E1M1 with no monsters, a 20-frag limit and 10-minute rounds. Hold **Tab** for scores; press fire after dying to respawn. Co-op runs in its own room at the same time.

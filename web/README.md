@@ -69,6 +69,8 @@ The build adds `web/engine/browser_bridge.c`: a command queue, configuration-wri
 
 Browser video mode changes retain GL objects, as SDL2 preserves the context. The browser-only configuration command is registered alongside the engine's other console commands in `host_cmd.c`.
 
+The local [level editor](editor/README.md) has an engine-rendered Scene and a separate Game playtest tab. Its `editor_bridge.c` adds a free renderer camera, frozen server state, stable authored entity IDs, actual asset/bounds snapshots and QuakeC activation preview. These hooks are inactive in ordinary gameplay. The editor uses Three.js for picking and editing overlays; world surfaces, models, lighting and effects use the same Quake renderer as gameplay.
+
 Run `build-web.cmd` to rebuild after editing `source/Quake/`. It uses the existing `ModelGenTrellis` WSL distribution and the locally installed Emscripten 4.0.23 SDK. Compilation and the Emscripten cache live under that distribution's `~/.cache/quakesrc-web`; generated browser files are copied into `web/dist/engine`.
 
 Dependencies are in `tools/emsdk` and `tools/gl4es`. This checkout uses:

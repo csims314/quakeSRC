@@ -13,11 +13,14 @@ runtime/*.png
 runtime/*.tga
 tools/emsdk/
 tools/gl4es/
+tools/ericw-tools/
+web/dist/editor/
 tools/quakespasm-upstream.git/
 web/dist/engine/
 web/test-artifacts/
 web/*.log
 web/server.pid
+web/editor.pid
 node_modules/
 web/.local/
 .env
