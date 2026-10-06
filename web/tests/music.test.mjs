@@ -49,3 +49,45 @@ test('audio streaming byte ranges', () => {
   assert.equal(byteRange('bytes=0-1,5-6', 100), null);
   assert.equal(byteRange('items=0-1', 100), null);
 });
+
+test('music blocked by the browser starts on the next player input', async () => {
+  const listeners = new Map(), plays = [];
+  const on = (type, fn) => listeners.set(type, [...(listeners.get(type) || []), fn]);
+  const off = (type, fn) => listeners.set(type, (listeners.get(type) || []).filter(f => f !== fn));
+  const globals = {
+    Audio: class {
+      paused = true; volume = 1; loop = false; currentTime = 0; src = '';
+      canPlayType() { return 'maybe'; }
+      play() {
+        plays.push(this.src);
+        if (plays.length === 1) return Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' }));
+        this.paused = false; return Promise.resolve();
+      }
+      pause() { this.paused = true; } load() {} removeAttribute() { this.src = ''; }
+    },
+    document: { hidden: false, addEventListener() {} },
+    window: { addEventListener: on, removeEventListener: off },
+    location: { href: 'https://quake.example/' },
+    indexedDB: { open() { const request = {}; queueMicrotask(() => request.onerror?.()); return request; } },
+    fetch: async () => ({ ok: true, json: async () => ({ tracks: [{ key: 'track04', name: 'track04.mp3', url: '/assets/music/track04.mp3', type: 'audio/mpeg' }] }) }),
+  };
+  const saved = Object.fromEntries(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+  try {
+    const { createMusicPlayer } = await import('../dist/music.js');
+    const music = createMusicPlayer();
+    await music.load();
+    assert.equal(music.play('track04', true), true);
+    await new Promise(resolve => setTimeout(resolve));
+    assert.equal(plays.length, 1); assert.equal(music.state().paused, true);
+    assert.ok(listeners.get('pointerdown')?.length, 'waits for the next input');
+    for (const fn of listeners.get('pointerdown')) fn();
+    await new Promise(resolve => setTimeout(resolve));
+    assert.equal(plays.length, 2); assert.equal(music.state().paused, false);
+    assert.equal(listeners.get('pointerdown').length + listeners.get('keydown').length, 0, 'stops listening once playing');
+  } finally {
+    for (const [key, descriptor] of Object.entries(saved)) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
+    }
+  }
+});

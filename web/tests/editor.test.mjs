@@ -131,6 +131,7 @@ test("project roundtrip preserves image data, face alignment and stable target r
   assert.ok(map.includes(`"target" "e_${door.id}"`));
   assert.ok(map.includes(`"targetname" "e_${door.id}"`));
   assert.ok(map.includes('"mapversion" "220"'));
+  assert.ok(map.includes('"sounds" "6"'), 'editor maps name a CD track so music plays');
 });
 test("invalid geometry, identifiers, properties and imported pixels are rejected", () => {
   let p = starterProject();

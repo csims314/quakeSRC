@@ -52,7 +52,20 @@ export function createMusicPlayer({ log = () => {} } = {}) {
   let current = null, wanted = null, wantedLoop = true, enginePaused = false;
 
   const playable = type => audio.canPlayType(type) !== '';
-  const start = () => audio.play().catch(error => log(`Music: ${error.message}`));
+  // Tracks start seconds after the Launch click, which some browsers (Safari,
+  // strict autoplay settings) refuse. Try again on the player's next input.
+  let waiting = false;
+  const retry = () => {
+    waiting = false;
+    for (const type of ['pointerdown', 'keydown', 'touchend']) window.removeEventListener(type, retry, true);
+    if (current && !enginePaused && !document.hidden && audio.paused) start();
+  };
+  const start = () => audio.play().catch(error => {
+    if (error.name !== 'NotAllowedError') { log(`Music: ${error.message}`); return; }
+    if (waiting) return;
+    waiting = true;
+    for (const type of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(type, retry, true);
+  });
 
   async function storedFiles() {
     try { return await storeRequest('readonly', store => store.getAll()); }
