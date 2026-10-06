@@ -22,6 +22,7 @@
       <button id="join" disabled>Join co-op</button>
       <button id="leave" hidden>Leave multiplayer</button>
       <button id="fullscreen">Fullscreen</button>
+      <button id="touch-toggle" aria-pressed="false">Touch controls</button>
       <button id="backup" disabled>Export saves</button>
       <label class="button">Import saves<input id="restore" type="file" accept=".json,.sav" hidden></label>
     </div>
@@ -37,6 +38,7 @@
           <p>QuakeSpasm, the original levels, and the original game logic.<br>Play the installed shareware episode or load your own Quake PAK files.</p>
           <button id="start" class="primary">Launch Quake <span>↗</span></button>
           <label class="pak-label">Use your purchased game files <input id="paks" type="file" accept=".pak" multiple></label>
+          <label class="pak-label">Add your soundtrack (track02.ogg … track11.ogg) <input id="music-files" type="file" accept=".ogg,.oga,.opus,.mp3,.flac,.wav,.m4a,audio/*" multiple></label>
           <p id="loading" role="status" aria-live="polite">Saves stay in this browser. Export a backup to keep them.</p>
         </div>
       </div>
@@ -44,11 +46,19 @@
     </section>
     <div class="below">
       <p><kbd>W A S D</kbd> move <kbd>Mouse</kbd> look / fire <kbd>Space</kbd> jump <kbd>Esc</kbd> menu <kbd>~</kbd> console</p>
-      <button id="details-toggle" aria-expanded="false" aria-controls="details">Controls &amp; details</button>
+      <span class="below-links"><a href="/status">Who's playing</a>
+      <button id="details-toggle" aria-expanded="false" aria-controls="details">Controls &amp; details</button></span>
     </div>
     <p id="multiplayer-summary" role="status">Co-op · Original monsters · Normal · Up to 8 players</p>
     <section id="details" hidden>
       <p>Start a game with <strong>Esc → Single Player → New Game</strong>. Use the in-game menus to change controls, difficulty, video, sound, and saves. Mouse capture and audio require a click.</p>
+      <p>On a phone or tablet, <strong>Touch controls</strong> turn on by themselves: drag on the left to move (push further to run), drag on the right or on Fire to look, and use Menu for the game menus. The game's Mouse Speed option also sets how fast the view turns.</p>
+      <div class="music-row">
+        <p>Music: <span id="music-status">checking…</span>. Name files like <code>track02.ogg</code> to <code>track11.ogg</code>, matching the original CD tracks. Your files stay in this browser and are used before any music on the server. Change the volume in Options → Music Volume.</p>
+        <label class="button">Add music<input id="music-add" type="file" accept=".ogg,.oga,.opus,.mp3,.flac,.wav,.m4a,audio/*" multiple hidden></label>
+        <button id="music-clear" disabled>Remove your music</button>
+        <p id="music-note" role="status" aria-live="polite"></p>
+      </div>
       <p>The installed data contains the first episode. Select <code>pak0.pak</code> and <code>pak1.pak</code> from your purchased copy before launching to play the full campaign. Files you select stay on your computer.</p>
       <p>The original shareware is available as a <a href="/assets/quake106.zip">complete, unchanged archive</a>. Its <a href="/assets/shareware-license.txt">original license</a> accompanies the game data.</p>
       <p>Click <strong>Join co-op</strong> to fight Quake's original monsters together on the shared server. Up to eight players share the campaign, enemies, and level progress. Other players can open this page and join the same game. Use Quake's console to chat with <code>say hello</code>. Single-player saves remain available after leaving multiplayer.</p>
@@ -56,7 +66,7 @@
       <label for="server-url">Multiplayer server (optional)</label>
       <input id="server-url" type="url" placeholder="Use this site's server" aria-describedby="network-status">
       <p id="network-status" role="status" aria-live="polite">Multiplayer uses WebTransport.</p>
-      <p>This build runs QuakeSpasm through WebAssembly and <a href="https://github.com/ptitSeb/gl4es">GL4ES</a>. The installed shareware data has no CD soundtrack.</p>
+      <p>This build runs QuakeSpasm through WebAssembly and <a href="https://github.com/ptitSeb/gl4es">GL4ES</a>. The shareware data has no soundtrack; add your own above.</p>
       <form id="command-form"><label for="command">Engine console command</label><div><input id="command" placeholder="e.g. map e1m1" autocomplete="off"><button id="send-command" disabled>Run</button></div></form>
       <details><summary>Engine log</summary><pre id="log"></pre></details>
       <p class="licenses"><a href="https://github.com/csims314/quakeSRC">Project source</a> · <a href="engine/LICENSE.txt">QuakeSpasm GPL license</a> · <a href="engine/GL4ES-LICENSE.txt">GL4ES license</a></p>

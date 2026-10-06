@@ -7,6 +7,7 @@ import selfsigned from 'selfsigned';
 import { Http3Server, quicheLoaded } from '@fails-components/webtransport';
 import { createQuakeTransport } from './dist/network.js';
 import { multiplayerRules, roomStartup } from './rooms.mjs';
+import { publicStatus } from './status.mjs';
 
 const MAX_PLAYERS = 8;
 
@@ -90,6 +91,7 @@ async function startRoom(project, definition, options) {
 export async function startMultiplayer(project, options) {
   await quicheLoaded;
   const rules = options.roomDefinitions || multiplayerRules();
+  const startedAt = Date.now();
   let cert = await certificate(project, options);
   // Each factory call owns its own C globals, WASM memory, filesystem and
   // transport. Selecting a mode never changes the other room's game rules.
@@ -177,6 +179,7 @@ export async function startMultiplayer(project, options) {
     healthy: () => [...rooms.values()].every(room => room.state().serverActive),
     status: mode => { const room = selectedRoom(mode); return { ...room.state(), transport: room.network.snapshot(), logs: room.logs }; },
     world: mode => selectedRoom(mode).world(),
+    publicStatus: () => publicStatus([...rooms.values()].map(room => ({ id: room.id, label: room.label, maxPlayers: MAX_PLAYERS, state: room.state() })), startedAt),
     command: (text, mode) => selectedRoom(mode).command(text),
     stop: () => {
       clearInterval(renewal);

@@ -743,10 +743,18 @@ void IN_MouseMove(usercmd_t *cmd)
 	}
 }
 
+#ifdef __EMSCRIPTEN__
+void Web_TouchMove (usercmd_t *cmd);
+void Web_SendKeyEvents (void);
+#endif
+
 void IN_Move(usercmd_t *cmd)
 {
 	IN_JoyMove(cmd);
 	IN_MouseMove(cmd);
+#ifdef __EMSCRIPTEN__
+	Web_TouchMove(cmd);
+#endif
 }
 
 void IN_ClearStates (void)
@@ -1156,5 +1164,8 @@ void IN_SendKeyEvents (void)
 			break;
 		}
 	}
+#ifdef __EMSCRIPTEN__
+	Web_SendKeyEvents();
+#endif
 }
 

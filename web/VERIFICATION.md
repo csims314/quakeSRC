@@ -59,6 +59,21 @@ The same public flow passed on October 6, 2026 against the GCE production image 
 
 GitHub Actions passed all twelve unit/configuration tests and startup checks for both production rooms. The GCE game container used approximately 134 MiB with 312 MiB available on the VM during the check, and the pre-existing WebTransportArena process remained running. The public tests use independent browser sessions on one computer; they do not establish eight-player load capacity or verify multiple client devices. Default 20-frag/10-minute rules were read back from the production engine; shortened round limits and restart behavior were exercised locally.
 
+## Touch, music and status verification
+
+On October 6, 2026, `npm run test:touch` passed in agent-browser's Chromium, emulating a touch-only landscape phone (915×412, no mouse) through the DevTools protocol. Touches were real browser touch events, not script-created pointer events. The test uses ports 3106/4448 and closes its own server and browser afterward.
+
+| Flow | Result |
+|---|---|
+| Touch detection | A touch-only device turned touch controls on. Launch Quake was tapped, and the Click to play mouse-capture prompt never appeared. The start screen fits a 412-pixel-high landscape screen. |
+| Movement and look | The left stick moved the player about 330 units through the engine's normal movement path. A right-side drag turned the view 45° and pitched it down. Stick and look held by two fingers at once moved and turned together. |
+| Buttons and menus | Fire spent ammunition. Menu opened the original main menu, the controls switched to the arrow pad, and Back closed it. |
+| Player music | Ten generated WAV tracks were added through the soundtrack picker; a misnamed file was skipped with a message. The engine's start-map request (track04) streamed from the player's file, paused and resumed with the game, and followed `bgmvolume`. |
+| Server music | With generated OGG tracks in `runtime/id1/music`, `/api/music` listed them, `/assets/music/` answered byte ranges with 206 and impossible ranges with 416, and a path-traversal name returned 404. A separate desktop Chromium session streamed the start map's `track04.ogg` from the server, downloading only that track, while touch controls stayed off and Click to play remained. |
+| Status | After joining co-op by touch, `/api/status` listed the player by name with ping and time online, and only those fields. The `/status` page showed the player row. No browser errors. |
+
+Not verified: a physical phone or tablet, iOS Safari (including its Ogg support and lack of element fullscreen), or Android orientation lock. `npm run test:multiplayer` and `npm run test:deathmatch` passed again with the rebuilt engine.
+
 ## Public Google Compute Engine verification
 
 Verified on October 6, 2026 at [quake.34.10.23.32.sslip.io](https://quake.34.10.23.32.sslip.io), using two isolated Chromium browser sessions on the development computer across the public Internet to the GCE VM. This is a public connection test, not a test of two separate client computers or eight simultaneous players.

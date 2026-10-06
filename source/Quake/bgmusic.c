@@ -28,6 +28,24 @@
 
 #define MUSIC_DIRNAME	"music"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+/* The browser page streams music with its own audio player, so tracks are
+ * not downloaded in full and decoded in WebAssembly memory. Files the page
+ * does not offer still go through the engine's own decoders below. */
+EM_JS(int, BGM_WebPlay, (const char *name, int looping), {
+	const music = Module['quakeMusic'];
+	return music && music.play(UTF8ToString(name), !!looping) ? 1 : 0;
+});
+EM_JS(void, BGM_WebControl, (const char *action, float value), {
+	const music = Module['quakeMusic'];
+	if (music) music.control(UTF8ToString(action), value);
+});
+#else
+#define BGM_WebPlay(name, looping) 0
+#define BGM_WebControl(action, value)
+#endif
+
 qboolean	bgmloop;
 cvar_t		bgm_extmusic = {"bgm_extmusic", "1", CVAR_ARCHIVE};
 
@@ -107,6 +125,7 @@ static void BGM_Loop_f (void)
 			bgmloop = !bgmloop;
 
 		if (bgmstream) bgmstream->loop = bgmloop;
+		BGM_WebControl("loop", bgmloop);
 	}
 
 	if (bgmloop)
@@ -237,14 +256,17 @@ void BGM_Play (const char *filename)
 
 	BGM_Stop();
 
-	if (music_handlers == NULL)
-		return;
-
 	if (!filename || !*filename)
 	{
 		Con_DPrintf("null music file name\n");
 		return;
 	}
+
+	if (BGM_WebPlay(filename, bgmloop))
+		return;
+
+	if (music_handlers == NULL)
+		return;
 
 	ext = COM_FileGetExtension(filename);
 	if (! *ext)	/* try all things */
@@ -303,10 +325,14 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 	if (CDAudio_Play(track, looping) == 0)
 		return;			/* success */
 
-	if (music_handlers == NULL)
+	if (no_extmusic || !bgm_extmusic.value)
 		return;
 
-	if (no_extmusic || !bgm_extmusic.value)
+	q_snprintf(tmp, sizeof(tmp), "track%02d", (int)track);
+	if (BGM_WebPlay(tmp, bgmloop))
+		return;
+
+	if (music_handlers == NULL)
 		return;
 
 	prev_id = 0;
@@ -346,6 +372,7 @@ void BGM_PlayCDtrack (byte track, qboolean looping)
 
 void BGM_Stop (void)
 {
+	BGM_WebControl("stop", 0);
 	if (bgmstream)
 	{
 		bgmstream->status = STREAM_NONE;
@@ -357,6 +384,7 @@ void BGM_Stop (void)
 
 void BGM_Pause (void)
 {
+	BGM_WebControl("pause", 0);
 	if (bgmstream)
 	{
 		if (bgmstream->status == STREAM_PLAY)
@@ -366,6 +394,7 @@ void BGM_Pause (void)
 
 void BGM_Resume (void)
 {
+	BGM_WebControl("resume", 0);
 	if (bgmstream)
 	{
 		if (bgmstream->status == STREAM_PAUSE)
@@ -471,6 +500,7 @@ void BGM_Update (void)
 		else if (bgmvolume.value > 1)
 			Cvar_SetQuick (&bgmvolume, "1");
 		old_volume = bgmvolume.value;
+		BGM_WebControl("volume", bgmvolume.value);
 	}
 	if (bgmstream)
 		BGM_UpdateStream ();

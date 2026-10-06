@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#11100e">
+  <title>Quake · Who's playing</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="status-page">
+  <header>
+    <a class="wordmark" href="/" aria-label="Quake home">QUAKE<span>SERVER STATUS</span></a>
+    <a class="button" href="/">Play Quake</a>
+  </header>
+  <main>
+    <div class="status-head">
+      <h1>Who's playing</h1>
+      <p id="summary" role="status" aria-live="polite">Checking the server…</p>
+    </div>
+    <div id="rooms" class="rooms"></div>
+  </main>
+  <footer><span>QUAKESPASM / WEBASSEMBLY + WEBGL</span><span id="updated"></span></footer>
+  <script type="module" src="status.js"></script>
+</body>
+</html>
