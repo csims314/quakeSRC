@@ -1,3 +1,4 @@
+param([switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $port = if ($env:QUAKE_WEB_PORT) { [int]$env:QUAKE_WEB_PORT } else { 3000 }
@@ -11,7 +12,9 @@ function Test-QuakeServer {
     try {
         $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 1
         $network = Invoke-RestMethod -Uri "$url/api/multiplayer" -TimeoutSec 1
-        return $response.Content.Contains('<title>Quake') -and $network.available -and $network.transport -eq 'webtransport'
+        return $response.Content.Contains('<title>Quake') -and $network.available -and $network.transport -eq 'webtransport' -and
+            @($network.rooms | Where-Object { $_.id -eq 'coop' -and $_.available }).Count -eq 1 -and
+            @($network.rooms | Where-Object { $_.id -eq 'deathmatch' -and $_.available }).Count -eq 1
     } catch { return $false }
 }
 if (-not (Test-QuakeServer)) {
@@ -46,5 +49,5 @@ if (-not (Test-QuakeServer)) {
     }
     if (-not $serverReady) { throw 'Could not start the local Quake server. See web/server.stderr.log.' }
 }
-Start-Process $url
+if (-not $NoBrowser) { Start-Process $url }
 Write-Host "Quake is ready at $url"
