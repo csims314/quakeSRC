@@ -146,32 +146,7 @@ GLSLGamma_CreateShaders
 */
 static void GLSLGamma_CreateShaders (void)
 {
-#ifdef __EMSCRIPTEN__
-	const GLchar *vertSource = \
-		"precision highp float;\n"
-		"attribute vec4 aVertexPosition;\n"
-		"attribute vec2 aTextureCoord;\n"
-		"varying highp vec2 vTextureCoord;\n"
-		"\n"
-		"void main(void) {\n"
-		"	gl_Position = aVertexPosition;\n"
-		"	vTextureCoord = aTextureCoord;\n"
-		"}\n";
 
-	const GLchar *fragSource = \
-		"precision highp float;\n"
-		"varying highp vec2 vTextureCoord;\n"
-		"\n"
-		"uniform sampler2D GammaTexture;\n"
-		"uniform float GammaValue;\n"
-		"uniform float ContrastValue;\n"
-		"\n"
-		"void main(void) {\n"
-		"	  vec4 frag = texture2D(GammaTexture, vTextureCoord);\n"
-		"	  frag.rgb = frag.rgb * ContrastValue;\n"
-		"	  gl_FragColor = vec4(pow(frag.rgb, vec3(GammaValue)), 1.0);\n"
-		"}\n";
-#else
 	const GLchar *vertSource = \
 		"#version 110\n"
 		"\n"
@@ -192,7 +167,7 @@ static void GLSLGamma_CreateShaders (void)
 		"	  frag.rgb = frag.rgb * ContrastValue;\n"
 		"	  gl_FragColor = vec4(pow(frag.rgb, vec3(GammaValue)), 1.0);\n"
 		"}\n";
-#endif
+
 
 	if (!gl_glsl_gamma_able)
 		return;
@@ -235,7 +210,7 @@ void GLSLGamma_GammaCorrect (void)
 			r_gamma_texture_height = TexMgr_Pad(r_gamma_texture_height);
 		}
 
-		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA8, r_gamma_texture_width, r_gamma_texture_height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
+		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, r_gamma_texture_width, r_gamma_texture_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
@@ -490,11 +465,13 @@ void R_SetupGL (void)
 {
 	int scale;
 
+	if (!R_EffectsSetupGL ())
+	{
 	//johnfitz -- rewrote this section
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
 	scale =  CLAMP(1, (int)r_scale.value, 4); // ericw -- see R_ScaleView
-	glViewport (glx + r_refdef.vrect.x,
+	if (!R_EffectsViewport ()) glViewport (glx + r_refdef.vrect.x,
 				gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height,
 				r_refdef.vrect.width / scale,
 				r_refdef.vrect.height / scale);
@@ -513,6 +490,7 @@ void R_SetupGL (void)
 	glRotatef (-r_refdef.viewangles[0],  0, 1, 0);
 	glRotatef (-r_refdef.viewangles[1],  0, 0, 1);
 	glTranslatef (-r_refdef.vieworg[0],  -r_refdef.vieworg[1],  -r_refdef.vieworg[2]);
+	}
 
 	//
 	// set drawing parms
@@ -646,10 +624,7 @@ void R_DrawEntitiesOnList (qboolean alphapass) //johnfitz -- added parameter
 			(ENTALPHA_DECODE(currententity->alpha) == 1 && alphapass))
 			continue;
 
-		//johnfitz -- chasecam
-		if (currententity == &cl_entities[cl.viewentity])
-			currententity->angles[0] *= 0.3;
-		//johnfitz
+		// Player pitch is applied to prepared render data, never to the entity.
 
 		switch (currententity->model->type)
 		{
@@ -673,6 +648,10 @@ R_DrawViewModel -- johnfitz -- gutted
 */
 void R_DrawViewModel (void)
 {
+#ifdef __EMSCRIPTEN__
+	extern qboolean Web_EditorActive(void);
+	if (Web_EditorActive()) return;
+#endif
 	if (!r_drawviewmodel.value || !r_drawentities.value || chase_active.value)
 		return;
 
@@ -824,9 +803,6 @@ void R_ShowTris (void)
 		{
 			currententity = cl_visedicts[i];
 
-			if (currententity == &cl_entities[cl.viewentity]) // chasecam
-				currententity->angles[0] *= 0.3;
-
 			switch (currententity->model->type)
 			{
 			case mod_brush:
@@ -888,7 +864,7 @@ void R_DrawShadows (void)
 		return;
 
 	// Use stencil buffer to prevent self-intersecting shadows, from Baker (MarkV)
-	if (gl_stencilbits)
+	if (R_EffectsStencilBits ())
 	{
 		glClear(GL_STENCIL_BUFFER_BIT);
 		glStencilFunc(GL_EQUAL, 0, ~0);
@@ -909,7 +885,7 @@ void R_DrawShadows (void)
 		GL_DrawAliasShadow (currententity);
 	}
 
-	if (gl_stencilbits)
+	if (R_EffectsStencilBits ())
 	{
 		glDisable(GL_STENCIL_TEST);
 	}
@@ -923,12 +899,14 @@ R_RenderScene
 void R_RenderScene (void)
 {
 	R_SetupScene (); //johnfitz -- this does everything that should be done once per call to RenderScene
+	Fog_SetupFrame ();
 
 	Fog_EnableGFog (); //johnfitz
 
 	Sky_DrawSky (); //johnfitz
 
 	R_DrawWorld ();
+	R_EffectsDrawMirror ();
 
 	S_ExtraUpdate (); // don't let sound get messed up if going slow
 
@@ -945,6 +923,8 @@ void R_RenderScene (void)
 	R_DrawParticles ();
 
 	Fog_DisableGFog (); //johnfitz
+	R_EffectsFog ();
+	if (r_reflectionpass) return;
 
 	R_DrawViewModel (); //johnfitz -- moved here from R_RenderView
 
@@ -1019,7 +999,7 @@ void R_ScaleView (void)
 			r_scaleview_texture_height = TexMgr_Pad(r_scaleview_texture_height);
 		}
 
-		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, r_scaleview_texture_width, r_scaleview_texture_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, r_scaleview_texture_width, r_scaleview_texture_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
@@ -1089,6 +1069,7 @@ void R_RenderView (void)
 		glFinish ();
 
 	R_SetupView (); //johnfitz -- this does everything that should be done once per frame
+	R_EffectsBeginFrame ();
 
 	//johnfitz -- stereo rendering -- full of hacky goodness
 	if (r_stereo.value)
@@ -1126,6 +1107,7 @@ void R_RenderView (void)
 	}
 	//johnfitz
 
+	R_EffectsEndFrame ();
 	R_ScaleView ();
 
 	//johnfitz -- modified r_speeds output

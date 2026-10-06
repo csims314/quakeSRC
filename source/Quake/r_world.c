@@ -112,7 +112,10 @@ void R_MarkSurfaces (void)
 			nearwaterportal = true;
 
 	// choose vis data
-	if (r_novis.value || r_viewleaf->contents == CONTENTS_SOLID || r_viewleaf->contents == CONTENTS_SKY)
+	vis = R_EffectsVisibility ();
+	if (vis)
+		; /* Room-side PVS for a mirror whose virtual camera can be in solid. */
+	else if (r_novis.value || r_viewleaf->contents == CONTENTS_SOLID || r_viewleaf->contents == CONTENTS_SKY)
 		vis = Mod_NoVisPVS (cl.worldmodel);
 	else if (nearwaterportal)
 		vis = SV_FatPVS (r_origin, cl.worldmodel);
@@ -120,6 +123,7 @@ void R_MarkSurfaces (void)
 		vis = Mod_LeafPVS (r_viewleaf, cl.worldmodel);
 
 	r_visframecount++;
+	r_viewstamp++;
 
 	// set all chains to null
 	for (i=0 ; i<cl.worldmodel->numtextures ; i++)

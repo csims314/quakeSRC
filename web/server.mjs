@@ -1,16 +1,24 @@
 import { createServer } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMultiplayer } from './multiplayer.mjs';
 import { createInterface } from 'node:readline';
 import { serverConfig } from './config.mjs';
+import { createEditorService, editorOptions, isLoopback } from './editor/service.mjs';
 import { listMusic, byteRange, MUSIC_FILE, musicType } from './music.mjs';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = path.join(project, 'web', 'dist');
 const options = serverConfig();
+const editorSettings = editorOptions(options);
+if (editorSettings.lan) {
+  options.origins.add(`https://localhost:${options.webPort}`);
+  options.origins.add(`https://127.0.0.1:${options.webPort}`);
+}
+const editor = createEditorService(project, options, editorSettings);
 const port = options.webPort;
 let multiplayer, multiplayerError;
 try { multiplayer = await startMultiplayer(project, options); }
@@ -38,15 +46,16 @@ const json = (res, value) => {
   res.writeHead(200).end(JSON.stringify(value));
 };
 
-const server = createServer(async (req, res) => {
+const handleRequest = async (req, res) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-cache');
   try {
-    if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405).end(); return; }
     const url = new URL(req.url, 'http://localhost');
+    if (await editor.handler(req, res, url)) return;
+    if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405).end(); return; }
     if (url.pathname === '/healthz') {
       const healthy = Boolean(multiplayer?.healthy());
       res.setHeader('Content-Type', 'application/json');
@@ -71,6 +80,11 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === '/api/music') { json(res, { tracks: await listMusic(musicDirectory) }); return; }
     let pathname = decodeURIComponent(url.pathname);
+    if (editorSettings.lan && !isLoopback(req.socket.remoteAddress) && /^\/assets\/(pak[01]\.pak|quakespasm\.pak)$/.test(pathname)) {
+      res.writeHead(403).end('Select your own Quake files on the join page.'); return;
+    }
+    if (pathname === '/editor') { res.writeHead(308, { Location: '/editor/' }).end(); return; }
+    if (pathname === '/editor/') pathname = '/editor/index.html';
     if (pathname === '/favicon.ico') { res.writeHead(204).end(); return; }
     if (pathname.startsWith('/assets/music/')) {
       const name = pathname.slice('/assets/music/'.length);
@@ -112,9 +126,12 @@ const server = createServer(async (req, res) => {
     }
     res.writeHead(error.code === 'ENOENT' ? 404 : 500).end('File unavailable');
   }
-});
-server.listen(port, options.webHost, () => console.log(`Quake WebGL: ${options.publicOrigin}`));
+};
+const server = editorSettings.lan
+  ? createHttpsServer({ cert: await readFile(options.tlsCert), key: await readFile(options.tlsKey) }, handleRequest)
+  : createServer(handleRequest);
+server.listen(port, editorSettings.lan ? '0.0.0.0' : options.webHost, () => console.log(`Quake WebGL: ${options.publicOrigin}`));
 server.on('error', error => { console.error(error.message); multiplayer?.stop(); process.exit(1); });
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
-  multiplayer?.stop(); server.close(); process.exit(0);
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => {
+  await editor.stop(); multiplayer?.stop(); server.close(); process.exit(0);
 });

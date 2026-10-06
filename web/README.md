@@ -67,6 +67,13 @@ The console command is `character nick` or `character ranger`. Characters work w
 
 ## Engine and build
 
+The browser renderer includes a live planar mirror directly behind the stock
+`start` spawn: turn around to see Ranger from head to feet. Depth-aware volumetric
+fog with BSP-shadowed static lighting is available but disabled for now. See
+[RENDERING.md](RENDERING.md) for the plans,
+quality controls, map authoring keys and current lighting limits. Verify them
+with `npm run test:render:math` and `npm run test:render`.
+
 This is the project's QuakeSpasm C engine compiled to WebAssembly, using GL4ES to translate its OpenGL renderer to WebGL. It is not a JavaScript recreation. Rendering, audio scheduling, browser pointer lock, storage, and network capabilities differ from native applications; absolute pixel/timing parity is not guaranteed. The native prebuilt runtime is 0.96.3 and the installed development sources identify as 0.97.0.
 
 The launcher uses QuakeSpasm's `-nopackedpixels` option because GL4ES does not accept the packed desktop OpenGL lightmap upload format. Standard byte lightmaps preserve level lighting through WebGL.
@@ -74,6 +81,8 @@ The launcher uses QuakeSpasm's `-nopackedpixels` option because GL4ES does not a
 The build adds `web/engine/browser_bridge.c`: a command queue, configuration-write command, read-only game and world state snapshots, and touch input (an analog stick and view turns applied in `IN_Move`, plus menu keys delivered during the engine's input pass in `in_sdl.c`). Browser-only changes in `bgmusic.c` hand music requests, pause, volume and loop changes to the page's audio player (`web/dist/music.js`). Browser-only changes in `main_sdl.c` and `gl_vidsdl.c` schedule frames through Emscripten's animation loop, initialize GL4ES after WebGL context creation, and resolve desktop GL extensions through the translation layer. Engine simulation, physics, QuakeC execution, level loading, and sound mixing remain in QuakeSpasm.
 
 Browser video mode changes retain GL objects, as SDL2 preserves the context. The browser-only configuration command is registered alongside the engine's other console commands in `host_cmd.c`.
+
+The local [level editor](editor/README.md) has an engine-rendered Scene and a separate Game playtest tab. Its `editor_bridge.c` adds a free renderer camera, frozen server state, stable authored entity IDs, actual asset/bounds snapshots and QuakeC activation preview. These hooks are inactive in ordinary gameplay. The editor uses Three.js for picking and editing overlays; world surfaces, models, lighting and effects use the same Quake renderer as gameplay.
 
 Run `build-web.cmd` to rebuild after editing `source/Quake/`. It uses the existing `ModelGenTrellis` WSL distribution and the locally installed Emscripten 4.0.23 SDK. Compilation and the Emscripten cache live under that distribution's `~/.cache/quakesrc-web`; generated browser files are copied into `web/dist/engine`.
 

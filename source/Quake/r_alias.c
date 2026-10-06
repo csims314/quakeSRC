@@ -533,6 +533,40 @@ void R_SetupEntityTransform (entity_t *e, lerpdata_t *lerpdata)
 	}
 }
 
+/* Alias interpolation belongs to the frame, not to each camera/shadow pass. */
+typedef struct { entity_t *entity; lerpdata_t data; } alias_render_cache_t;
+static alias_render_cache_t alias_render_cache[8192];
+static int alias_render_frame = -1;
+
+void R_AliasResetRenderCache(void)
+{
+	alias_render_frame = -1;
+	memset(alias_render_cache, 0, sizeof(alias_render_cache));
+}
+
+static void R_PrepareAlias(entity_t *e, aliashdr_t *hdr, lerpdata_t *data)
+{
+	unsigned int slot = ((uintptr_t)e >> 4) & 8191, attempt;
+	if (alias_render_frame != r_framecount) {
+		memset(alias_render_cache, 0, sizeof(alias_render_cache));
+		alias_render_frame = r_framecount;
+	}
+	for (attempt=0; attempt<8192; attempt++, slot=(slot+1)&8191) {
+		alias_render_cache_t *entry = &alias_render_cache[slot];
+		if (entry->entity == e) { *data=entry->data; return; }
+		if (!entry->entity) {
+			entry->entity=e;
+			R_SetupAliasFrame(hdr,e->frame,&entry->data);
+			R_SetupEntityTransform(e,&entry->data);
+			if (cl_entities && e == &cl_entities[cl.viewentity]) entry->data.angles[0] *= .3f;
+			*data=entry->data;
+			return;
+		}
+	}
+	R_SetupAliasFrame(hdr,e->frame,data);
+	R_SetupEntityTransform(e,data);
+}
+
 /*
 =================
 R_SetupAliasLighting -- johnfitz -- broken out from R_DrawAliasModel and rewritten
@@ -643,8 +677,7 @@ void R_DrawAliasModel (entity_t *e)
 	// setup pose/lerp data -- do it first so we don't miss updates due to culling
 	//
 	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
-	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
-	R_SetupEntityTransform (e, &lerpdata);
+	R_PrepareAlias (e, paliashdr, &lerpdata);
 
 	//
 	// cull it
@@ -939,8 +972,7 @@ void GL_DrawAliasShadow (entity_t *e)
 	if (entalpha == 0) return;
 
 	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
-	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
-	R_SetupEntityTransform (e, &lerpdata);
+	R_PrepareAlias (e, paliashdr, &lerpdata);
 	R_LightPoint (e->origin);
 	lheight = currententity->origin[2] - lightspot[2];
 
@@ -987,8 +1019,7 @@ void R_DrawAliasModel_ShowTris (entity_t *e)
 		return;
 
 	paliashdr = (aliashdr_t *)Mod_Extradata (e->model);
-	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
-	R_SetupEntityTransform (e, &lerpdata);
+	R_PrepareAlias (e, paliashdr, &lerpdata);
 
 	if (e == &cl.viewent && scr_fov.value > 90.f && cl_gun_fovscale.value)
 		fovscale = tan(scr_fov.value * (0.5f * M_PI / 180.f));

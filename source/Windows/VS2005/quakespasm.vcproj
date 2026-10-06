@@ -394,6 +394,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\Quake\gl_effects.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\Quake\gl_mesh.c"
 				>
 			</File>

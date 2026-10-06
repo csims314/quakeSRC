@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Quake Workshop · Level Editor</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/"
+        >Q<span>WORKSHOP<small>LEVEL EDITOR</small></span></a
+      ><input id="title" aria-label="Level title" value="Untitled level" /><span
+        id="save-status"
+        >Local project</span
+      >
+      <div class="header-actions">
+        <select id="difficulty" aria-label="Playtest difficulty">
+          <option value="0">Easy</option>
+          <option value="1" selected>Normal</option>
+          <option value="2">Hard</option>
+          <option value="3">Nightmare</option>
+        </select>
+        <button id="build">Build level</button
+        ><button id="solo" class="accent" aria-label="Play solo">
+          ▶ Play solo</button
+        ><button id="coop" class="accent">Host co-op</button>
+      </div>
+    </header>
+    <div class="workspace">
+      <aside class="left-panel">
+        <div class="section-heading">CREATE <span>01</span></div>
+        <div class="tool-grid">
+          <button data-create="room">▣<span>Room</span></button
+          ><button data-create="box">▧<span>Block</span></button
+          ><button data-create="wedge">◩<span>Ramp</span></button
+          ><button id="opening">⊓<span>Wall opening</span></button>
+        </div>
+        <label class="field"
+          >Gameplay object<select id="object-type"></select></label
+        ><button id="add-object" class="wide">＋ Place object</button>
+        <div class="section-heading">
+          HIERARCHY <span id="object-count">0</span>
+        </div>
+        <input
+          id="hierarchy-search"
+          type="search"
+          placeholder="Search hierarchy"
+          aria-label="Search hierarchy"
+        />
+        <div class="hierarchy-actions">
+          <button id="group-selection">Group</button
+          ><button id="ungroup-selection">Ungroup</button
+          ><button id="hide-selection">Hide gizmos</button
+          ><button id="lock-selection">Lock</button>
+        </div>
+        <div id="scene-list" role="listbox" aria-label="Level objects"></div>
+        <div class="file-actions">
+          <button id="new">New level</button
+          ><button id="example">Example level</button
+          ><button id="save">Export project</button
+          ><label class="button"
+            >Open project<input
+              id="open"
+              type="file"
+              accept=".json"
+              hidden /></label
+          ><button id="source">Export map + WAD</button
+          ><button id="export-bsp">Export compiled</button>
+        </div>
+      </aside>
+      <main>
+        <div class="workspace-tabs">
+          <button id="scene-tab" class="active">Scene</button
+          ><button id="game-tab">Game</button
+          ><span id="scene-revision">No compiled scene</span
+          ><button id="refresh-scene">Refresh Scene</button
+          ><label
+            ><input id="auto-scene" type="checkbox" checked />Auto
+            refresh</label
+          ><button id="simulate">Preview effects</button
+          ><button id="pause-preview" hidden>Pause</button
+          ><button id="reset-preview" hidden>Stop / Reset</button
+          ><button id="four-view">Four views</button
+          ><button id="overlays" class="active">Gizmos</button>
+        </div>
+        <div class="viewport-toolbar">
+          <div class="segmented">
+            <button data-tool="translate" class="active">
+              Move <kbd>W</kbd></button
+            ><button data-tool="rotate">Rotate <kbd>E</kbd></button
+            ><button
+              data-tool="scale"
+              title="Resize brush geometry; game models retain their native size"
+            >
+              Resize <kbd>R</kbd>
+            </button>
+          </div>
+          <button id="undo" title="Undo">↶</button
+          ><button id="redo" title="Redo">↷</button
+          ><button id="duplicate">Duplicate</button
+          ><button id="delete">Delete</button
+          ><button id="focus">Frame selection</button
+          ><label
+            >Grid
+            <select id="grid">
+              <option>8</option>
+              <option selected>16</option>
+              <option>32</option>
+              <option>64</option>
+            </select></label
+          ><button id="face-mode">Face select</button
+          ><button
+            id="cutaway"
+            disabled
+            title="Cutaway for orthographic wire views"
+          >
+            Wire cutaway
+          </button>
+          <select id="transform-space" aria-label="Transform space">
+            <option value="world">Global</option>
+            <option value="local">Local</option>
+          </select>
+          <select id="pivot-mode" aria-label="Pivot mode">
+            <option value="center">Center</option>
+            <option value="active">Active pivot</option>
+          </select>
+          <div id="orientation">
+            <button data-axis="x">X</button><button data-axis="y">Y</button
+            ><button data-axis="z">Z</button
+            ><button id="perspective-view">Persp</button>
+          </div>
+        </div>
+        <div id="viewports" class="single-view">
+          <iframe
+            id="scene-frame"
+            src="scene.html"
+            title="Quake engine Scene view"
+            tabindex="-1"
+            allow="autoplay"
+          ></iframe>
+          <canvas id="viewport-canvas"></canvas>
+          <div class="view" data-view="0">
+            <span>SCENE · QUAKE RENDERER</span>
+          </div>
+          <div class="view" data-view="1"><span>TOP · XY</span></div>
+          <div class="view" data-view="2"><span>FRONT · XZ</span></div>
+          <div class="view" data-view="3"><span>SIDE · YZ</span></div>
+          <div class="viewport-hint">
+            Drag to orbit · Right-drag + WASD/QE to fly · F to frame ·
+            Shift-click to select more
+          </div>
+        </div>
+        <div class="statusbar">
+          <span id="selection-status">Nothing selected</span
+          ><span id="coordinates">Z UP · QUAKE UNITS</span
+          ><span id="build-state">No build yet</span>
+        </div>
+        <section class="build-panel">
+          <div class="build-panel-top">
+            <span class="section-heading">BUILD OUTPUT</span
+            ><span id="prerequisites">Checking tools…</span
+            ><button id="cancel-build" hidden>Cancel build</button
+            ><button id="stop-session" hidden>Stop co-op</button>
+          </div>
+          <div class="console-tools">
+            <input
+              id="console-search"
+              type="search"
+              placeholder="Filter output"
+              aria-label="Filter console"
+            />
+            <select id="console-severity" aria-label="Console severity">
+              <option value="all">All messages</option>
+              <option value="warnings">Warnings / errors</option>
+            </select>
+            <button id="frame-leak" hidden>Frame leak</button>
+          </div>
+          <pre id="build-log">
+Create a room, place objects, then build your level.</pre
+          >
+          <div id="join-link" hidden>
+            <span>LAN PLAYTEST</span
+            ><a id="join-url" target="_blank" rel="noopener"></a
+            ><button id="copy-link">Copy link</button>
+          </div>
+        </section>
+      </main>
+      <aside class="right-panel">
+        <div class="section-heading">INSPECTOR <span>02</span></div>
+        <div id="inspector">
+          <p class="muted">Select a brush or object to edit it.</p>
+        </div>
+        <div class="section-heading">
+          TEXTURES <span id="texture-count">0</span>
+        </div>
+        <input
+          id="texture-search"
+          type="search"
+          placeholder="Find a texture…"
+          aria-label="Find a texture"
+        /><label class="button wide"
+          >＋ Import PNG / JPEG<input
+            id="image-import"
+            type="file"
+            accept="image/png,image/jpeg"
+            hidden
+        /></label>
+        <p id="texture-note" class="muted">
+          Choose a texture to paint the selected brush or face.
+        </p>
+        <div id="texture-list"></div>
+        <div class="footer-notes">
+          <a href="../engine/LICENSE.txt">Engine GPL license</a
+          ><a href="DEPENDENCIES.txt">Editor dependency notices</a
+          ><span>Projects save in this browser. Export a backup.</span>
+        </div>
+      </aside>
+    </div>
+    <div id="toast" role="status" hidden></div>
+    <dialog id="play-dialog">
+      <div class="play-title">
+        <strong>PLAYTEST</strong><span>Esc releases the mouse</span
+        ><button id="close-play">Return to editor</button>
+      </div>
+      <iframe
+        id="play-frame"
+        title="Quake level playtest"
+        allow="fullscreen; autoplay"
+      ></iframe>
+    </dialog>
+    <script type="module" src="ui.js"></script>
+  </body>
+</html>

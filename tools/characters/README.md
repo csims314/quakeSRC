@@ -9,7 +9,7 @@ Players choose a character on the launch screen or with the toolbar's **Characte
 - QuakeC still uses `progs/player.mdl`. When the server sends an entity whose model is the player or the gibbed head, and whose colormap belongs to a client with a character, it sends that character's model instead. That covers the live player, the corpse left after respawning, and the thrown head.
 - The status bar uses `characters/<name>/face*.png` (96x96, drawn at the classic 24x24 size), falling back to `face*.lmp` and then to the original faces. The face follows the model the server actually shows for the player.
 - Character skins are mipmapped, so detailed faces stay clean at a distance. Clients that lack a character's files show those players as the original player instead of failing to connect.
-- Shareware data cannot load modified game files. The engine makes one exception, for files under `characters/`, which hold only original or freely licensed art.
+- Character files are loose files under `characters/` in the game directory. They hold only original or freely licensed art and load with shareware or registered data.
 
 ## Rebuilding Nick
 

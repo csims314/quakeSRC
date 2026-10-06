@@ -146,6 +146,10 @@ FIXME: walk all entities and NULL out references to this entity
 */
 void ED_Free (edict_t *ed)
 {
+#ifdef __EMSCRIPTEN__
+	extern void Web_EditorTag(edict_t *, const char *);
+	Web_EditorTag(ed, ""); // A reused runtime slot must not inherit an authored ID.
+#endif
 	SV_UnlinkEdict (ed);		// unlink from world bsp
 
 	ed->free = true;
@@ -938,6 +942,12 @@ const char *ED_ParseEdict (const char *data, edict_t *ent)
 			Host_Error ("ED_ParseEntity: closing brace without data");
 
 		init = true;
+#ifdef __EMSCRIPTEN__
+		if (!strcmp(keyname, "_editor_id")) {
+			extern void Web_EditorTag(edict_t *, const char *);
+			Web_EditorTag(ent, com_token);
+		}
+#endif
 
 		// keynames with a leading underscore are used for utility comments,
 		// and are immediately discarded by quake
@@ -993,6 +1003,10 @@ to call ED_CallSpawnFunctions () to let the objects initialize themselves.
 */
 void ED_LoadFromFile (const char *data)
 {
+#ifdef __EMSCRIPTEN__
+	extern void Web_EditorClearTags(void);
+	Web_EditorClearTags();
+#endif
 	const char	*classname;
 	dfunction_t	*func;
 	edict_t		*ent = NULL;

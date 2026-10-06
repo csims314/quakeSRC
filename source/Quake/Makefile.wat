@@ -174,6 +174,7 @@ GLOBJS = &
 	gl_rlight.obj &
 	gl_rmain.obj &
 	gl_fog.obj &
+	gl_effects.obj &
 	gl_rmisc.obj &
 	r_part.obj &
 	r_world.obj &

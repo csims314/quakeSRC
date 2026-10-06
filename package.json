@@ -4,18 +4,30 @@
   "type": "module",
   "scripts": {
     "start": "node web/server.mjs",
+    "build:editor": "node tools/build-editor.mjs",
+    "setup:editor": "node tools/setup-editor.mjs",
+    "start:editor": "node tools/start-editor.mjs",
+    "test:editor": "node --test web/tests/editor.test.mjs web/tests/editor-workspace.test.mjs",
+    "test:editor:browser": "node web/tests/editor.e2e.mjs",
     "build:web": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1",
     "build:characters": "node tools/characters/build.mjs",
-    "test": "node --test web/tests/network.test.mjs web/tests/config.test.mjs web/tests/rooms.test.mjs web/tests/music.test.mjs web/tests/status.test.mjs web/tests/characters.test.mjs",
+    "test": "node --test web/tests/network.test.mjs web/tests/config.test.mjs web/tests/rooms.test.mjs web/tests/editor.test.mjs web/tests/editor-workspace.test.mjs web/tests/music.test.mjs web/tests/status.test.mjs web/tests/characters.test.mjs",
     "test:multiplayer": "node web/tests/multiplayer.e2e.mjs",
     "test:production": "node web/tests/production.e2e.mjs",
     "test:deathmatch": "node web/tests/deathmatch.e2e.mjs",
     "test:touch": "node web/tests/touch.e2e.mjs",
+    "test:render:math": "node tools/test-render-math.mjs",
+    "test:render": "node web/tests/render-effects.e2e.mjs",
     "test:characters": "node web/tests/characters.e2e.mjs"
   },
   "dependencies": {
     "@fails-components/webtransport": "1.6.8",
     "@fails-components/webtransport-transport-http3-quiche": "1.6.8",
-    "selfsigned": "5.5.0"
+    "fflate": "0.8.3",
+    "selfsigned": "5.5.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

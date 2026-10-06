@@ -826,7 +826,7 @@ void Sky_DrawSkyBox (void)
 		rs_skypolys++;
 		rs_skypasses++;
 
-		if (Fog_GetDensity() > 0 && skyfog > 0)
+		if ((Fog_GetDensity() > 0 && !R_EffectsUsingVFog()) && skyfog > 0)
 		{
 			float *c;
 
@@ -977,7 +977,7 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		rs_skypasses += 2;
 	}
 
-	if (Fog_GetDensity() > 0 && skyfog > 0)
+	if ((Fog_GetDensity() > 0 && !R_EffectsUsingVFog()) && skyfog > 0)
 	{
 		float *c;
 
@@ -1108,7 +1108,7 @@ void Sky_DrawSky (void)
 	//
 	Fog_DisableGFog ();
 	glDisable (GL_TEXTURE_2D);
-	if (Fog_GetDensity() > 0)
+	if ((Fog_GetDensity() > 0 && !R_EffectsUsingVFog()))
 		glColor3fv (Fog_GetColor());
 	else
 		glColor3fv (skyflatcolor);
@@ -1120,7 +1120,7 @@ void Sky_DrawSky (void)
 	//
 	// render slow sky: cloud layers or skybox
 	//
-	if (!r_fastsky.value && !(Fog_GetDensity() > 0 && skyfog >= 1))
+	if (!r_fastsky.value && !((Fog_GetDensity() > 0 && !R_EffectsUsingVFog()) && skyfog >= 1))
 	{
 		glDepthFunc(GL_GEQUAL);
 		glDepthMask(0);

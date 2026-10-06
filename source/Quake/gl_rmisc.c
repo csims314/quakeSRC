@@ -236,6 +236,7 @@ void R_Init (void)
 
 	Sky_Init (); //johnfitz
 	Fog_Init (); //johnfitz
+	R_EffectsInit ();
 }
 
 /*
@@ -401,6 +402,7 @@ void R_NewMap (void)
 	Sky_NewMap (); //johnfitz -- skybox in worldspawn
 	Fog_NewMap (); //johnfitz -- global fog in worldspawn
 	R_ParseWorldspawn (); //ericw -- wateralpha, lavaalpha, telealpha, slimealpha in worldspawn
+	R_EffectsNewMap ();
 
 	load_subdivide_size = gl_subdivide_size.value; //johnfitz -- is this the right place to set this?
 }

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Workshop · Playtest</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="play-page">
+    <canvas
+      id="game"
+      width="1280"
+      height="720"
+      tabindex="0"
+      aria-label="Quake playtest"
+    ></canvas>
+    <div class="play-status" id="status">Preparing playtest</div>
+    <div class="play-overlay" id="cover">
+      <div class="play-card">
+        <div class="section-heading">QUAKE WORKSHOP · PLAYTEST</div>
+        <h1 id="map-title">Play your level.</h1>
+        <p id="message">Loading build information…</p>
+        <label id="files-label" hidden
+          >Your purchased Quake files<input
+            id="paks"
+            type="file"
+            accept=".pak"
+            multiple /></label
+        ><button id="start" class="accent" disabled>Launch playtest</button>
+        <pre id="log"></pre>
+      </div>
+    </div>
+    <div class="play-overlay" id="capture" hidden>
+      <div class="play-card">
+        <h1>Ready to play.</h1>
+        <p>
+          WASD moves · Mouse looks and fires · Space jumps.<br />Esc releases
+          the mouse.
+        </p>
+        <button id="resume" class="accent">Click to play</button>
+      </div>
+    </div>
+    <script src="../engine/quakespasm.js"></script>
+    <script type="module" src="play.js"></script>
+  </body>
+</html>

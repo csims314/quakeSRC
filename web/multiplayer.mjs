@@ -82,8 +82,7 @@ async function startRoom(project, definition, options) {
     engine.FS.mkdirTree('/user/id1/maps');
     engine.FS.writeFile(`/user/id1/${file.name}`, new Uint8Array(file.bytes));
   }
-  // Shareware Quake leaves the cmdline cvar empty, so +commands are ignored.
-  // A server-owned startup config works for both shareware and registered data.
+  // A server-owned startup config also works with unmodified engine builds.
   engine.FS.writeFile('/user/id1/autoexec.cfg', roomStartup(definition));
   engine.callMain(['-dedicated', String(MAX_PLAYERS), '-basedir', '/quake', '-userdir', '/user', '-heapsize', '196608']);
   return { ...definition, engine, network, logs, sessions,

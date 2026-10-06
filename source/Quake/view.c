@@ -904,6 +904,9 @@ extern vrect_t	scr_vrect;
 
 void V_RenderView (void)
 {
+#ifdef __EMSCRIPTEN__
+	extern void Web_EditorApplyView(void), Web_EditorDrawSelection(void);
+#endif
 	if (con_forcedup)
 		return;
 
@@ -914,7 +917,13 @@ void V_RenderView (void)
 
 	//johnfitz -- removed lcd code
 
+#ifdef __EMSCRIPTEN__
+	Web_EditorApplyView();
+#endif
 	R_RenderView ();
+#ifdef __EMSCRIPTEN__
+	Web_EditorDrawSelection();
+#endif
 
 	V_PolyBlend (); //johnfitz -- moved here from R_Renderview ();
 }

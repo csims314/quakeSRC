@@ -316,7 +316,7 @@ async function start() {
     }
     if (pendingRestore) { await applyRestore(pendingRestore); pendingRestore = null; }
     $('loading').textContent = 'Starting Quake…';
-    const args = ['-basedir', '/quake', '-userdir', '/user', '-heapsize', '196608', '-window', '-width', '1280', '-height', '720', '-noipx', '-nopackedpixels'];
+    const args = ['-basedir', '/quake', '-userdir', '/user', '-heapsize', '196608', '-window', '-width', '1280', '-height', '720', '-noipx', '-nopackedpixels', '+r_vfog', '0'];
     const result = engine.callMain(args);
     if (result?.catch) result.catch(reportError);
     syncTimer = window.setInterval(() => {
@@ -356,6 +356,9 @@ $('join').addEventListener('click', async () => {
     const target = entered ? { url: entered, certificateHash: matched?.certificateHash } : config;
     command('disconnect');
     transport.closeAll();
+    // Commands run in the next engine frame. Finish releasing the previous
+    // connection before opening a new session, especially after server loss.
+    await waitForGame(state => !state.connected && state.signon === 0);
     const connectionId = await connectQuake(transport, target);
     command('stopdemo\nconnect webtransport\nmenu_main\ntogglemenu');
     await waitForGame(state => state.connectionId === connectionId && state.signon === 4 && !state.serverActive);

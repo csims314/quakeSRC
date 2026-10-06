@@ -83,6 +83,7 @@ void Fog_Update (float density, float red, float green, float blue, float time)
 	fog_blue = blue;
 	fade_time = time;
 	fade_done = cl.time + time;
+	R_EffectsFogChanged ();
 }
 
 /*
@@ -305,7 +306,7 @@ called at the beginning of each frame
 void Fog_SetupFrame (void)
 {
 	glFogfv(GL_FOG_COLOR, Fog_GetColor());
-	glFogf(GL_FOG_DENSITY, Fog_GetDensity() / 64.0);
+	glFogf(GL_FOG_DENSITY, R_EffectsUsingVFog() ? 0 : Fog_GetDensity() / 64.0);
 }
 
 /*
@@ -317,7 +318,7 @@ called before drawing stuff that should be fogged
 */
 void Fog_EnableGFog (void)
 {
-	if (Fog_GetDensity() > 0)
+	if (Fog_GetDensity() > 0 && !R_EffectsUsingVFog())
 		glEnable(GL_FOG);
 }
 
@@ -368,9 +369,9 @@ void Fog_StopAdditive (void)
 //
 //==============================================================================
 
-cvar_t r_vfog = {"r_vfog", "1", CVAR_NONE};
+cvar_t r_vfog = {"r_vfog", "0", CVAR_ARCHIVE};
 
-void Fog_DrawVFog (void){}
+void Fog_DrawVFog (void){R_EffectsFog();}
 void Fog_MarkModels (void){}
 
 //==============================================================================
@@ -403,7 +404,7 @@ void Fog_Init (void)
 {
 	Cmd_AddCommand ("fog",Fog_FogCommand_f);
 
-	//Cvar_RegisterVariable (&r_vfog);
+	Cvar_RegisterVariable (&r_vfog);
 
 	//set up global fog
 	fog_density = DEFAULT_DENSITY;

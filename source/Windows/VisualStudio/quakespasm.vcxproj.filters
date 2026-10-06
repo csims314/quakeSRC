@@ -63,6 +63,9 @@
     <ClCompile Include="..\..\Quake\gl_fog.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Quake\gl_effects.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Quake\gl_mesh.c">
       <Filter>Source Files</Filter>
     </ClCompile>

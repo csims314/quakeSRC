@@ -641,6 +641,9 @@ void SV_WriteEntitiesToClient (edict_t	*clent, sizebuf_t *msg)
 
 // find the client's PVS
 	VectorAdd (clent->v.origin, clent->v.view_ofs, org);
+#ifdef __EMSCRIPTEN__
+	{ extern void Web_EditorVisibilityOrigin(vec3_t); Web_EditorVisibilityOrigin(org); }
+#endif
 	pvs = SV_FatPVS (org, sv.worldmodel);
 
 // send over all entities (excpet the client) that touch the pvs

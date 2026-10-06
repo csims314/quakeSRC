@@ -58,6 +58,7 @@ async function status() { return (await fetch(`${url}/api/multiplayer/status?mod
 async function world() { return (await fetch(`${url}/api/multiplayer/world?mode=${statusMode}`, { signal: AbortSignal.timeout(2000) })).json(); }
 async function click(session, name) { await browser(session, ['find', 'role', 'button', 'click', '--name', name]); }
 async function join(session) {
+  await waitFor(() => evaluate(session, "!document.getElementById('join').disabled"), 'multiplayer join control ready');
   const label = await evaluate(session, "document.getElementById('join').textContent");
   await click(session, label);
   return joined(session);
