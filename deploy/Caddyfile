@@ -1,0 +1,4 @@
+{$QUAKE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy quake:3000
+}

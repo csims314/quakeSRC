@@ -1,0 +1,42 @@
+services:
+  quake:
+    image: ${QUAKE_IMAGE:-quake-web:local}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      QUAKE_PUBLIC_ORIGIN: https://${QUAKE_DOMAIN:?Set QUAKE_DOMAIN}
+      QUAKE_MULTIPLAYER_URL: https://${QUAKE_DOMAIN}:4433/quake
+      QUAKE_MULTIPLAYER_MODE: coop
+      QUAKE_MULTIPLAYER_MAP: e1m1
+      QUAKE_MULTIPLAYER_SKILL: ${QUAKE_MULTIPLAYER_SKILL:-1}
+    ports:
+      - "4433:4433/udp"
+    volumes:
+      - ./game-data:/app/runtime/id1:ro
+      - quake-certificates:/app/web/.local
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      QUAKE_DOMAIN: ${QUAKE_DOMAIN}
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      quake:
+        condition: service_healthy
+volumes:
+  quake-certificates:
+  caddy-data:
+  caddy-config:

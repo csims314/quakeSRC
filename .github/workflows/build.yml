@@ -1,0 +1,31 @@
+name: Verify and build production image
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: Build engine and production image
+        run: >-
+          docker build -f deploy/Dockerfile -t quake-web:${{ github.sha }}
+          --label org.opencontainers.image.revision=${{ github.sha }}
+          --label org.opencontainers.image.source=https://github.com/${{ github.repository }} .
+      - name: Export image
+        run: docker save quake-web:${{ github.sha }} | gzip > quake-image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quake-image
+          path: quake-image.tar.gz
+          retention-days: 14

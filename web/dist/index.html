@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#11100e">
+  <title>Quake · Local WebGL</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <a class="wordmark" href="/" aria-label="Quake home">QUAKE<span>LOCAL / WEBGL</span></a>
+    <div class="toolbar">
+      <span id="status" role="status">Ready</span>
+      <button id="pause" disabled>Pause</button>
+      <button id="join" disabled>Join co-op</button>
+      <button id="leave" hidden>Leave multiplayer</button>
+      <button id="fullscreen">Fullscreen</button>
+      <button id="backup" disabled>Export saves</button>
+      <label class="button">Import saves<input id="restore" type="file" accept=".json,.sav" hidden></label>
+    </div>
+  </header>
+  <main>
+    <section id="stage" aria-label="Quake game">
+      <canvas id="canvas" width="1280" height="720" tabindex="0" aria-label="Quake game canvas"></canvas>
+      <div id="cover">
+        <div class="intro">
+          <div class="sigil" aria-hidden="true">Ϙ</div>
+          <p class="eyebrow">THE ORIGINAL GAME. IN YOUR BROWSER.</p>
+          <h1>Enter the slipgate.</h1>
+          <p>QuakeSpasm, the original levels, and the original game logic.<br>Play the installed shareware episode or load your own Quake PAK files.</p>
+          <button id="start" class="primary">Launch Quake <span>↗</span></button>
+          <label class="pak-label">Use your purchased game files <input id="paks" type="file" accept=".pak" multiple></label>
+          <p id="loading" role="status" aria-live="polite">Saves stay in this browser. Export a backup to keep them.</p>
+        </div>
+      </div>
+      <div id="capture" hidden><button id="resume" class="primary">Click to play</button><p>Esc releases your mouse. Click the game to return.</p></div>
+    </section>
+    <div class="below">
+      <p><kbd>W A S D</kbd> move <kbd>Mouse</kbd> look / fire <kbd>Space</kbd> jump <kbd>Esc</kbd> menu <kbd>~</kbd> console</p>
+      <button id="details-toggle" aria-expanded="false" aria-controls="details">Controls &amp; details</button>
+    </div>
+    <p id="multiplayer-summary" role="status">Co-op · Original monsters · Normal · Up to 8 players</p>
+    <section id="details" hidden>
+      <p>Start a game with <strong>Esc → Single Player → New Game</strong>. Use the in-game menus to change controls, difficulty, video, sound, and saves. Mouse capture and audio require a click.</p>
+      <p>The installed data contains the first episode. Select <code>pak0.pak</code> and <code>pak1.pak</code> from your purchased copy before launching to play the full campaign. Files you select stay on your computer.</p>
+      <p>Click <strong>Join co-op</strong> to fight Quake's original monsters together on the local server. Up to eight players share the campaign, enemies, and level progress. Open this page in another browser or tab to join the same game. Use Quake's console to chat with <code>say hello</code>. Single-player saves remain available after leaving multiplayer.</p>
+      <label for="server-url">Multiplayer server (optional)</label>
+      <input id="server-url" type="url" placeholder="Use the local server" aria-describedby="network-status">
+      <p id="network-status" role="status" aria-live="polite">Multiplayer uses WebTransport.</p>
+      <p>This build runs QuakeSpasm through WebAssembly and <a href="https://github.com/ptitSeb/gl4es">GL4ES</a>. The installed shareware data has no CD soundtrack.</p>
+      <form id="command-form"><label for="command">Engine console command</label><div><input id="command" placeholder="e.g. map e1m1" autocomplete="off"><button id="send-command" disabled>Run</button></div></form>
+      <details><summary>Engine log</summary><pre id="log"></pre></details>
+      <p class="licenses"><a href="engine/LICENSE.txt">QuakeSpasm GPL license</a> · <a href="engine/GL4ES-LICENSE.txt">GL4ES license</a></p>
+    </section>
+  </main>
+  <footer><span>QUAKESPASM / WEBASSEMBLY + WEBGL</span><span id="save-status">LOCAL SINGLE PLAYER</span></footer>
+  <script src="engine/quakespasm.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
