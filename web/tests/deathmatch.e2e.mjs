@@ -41,7 +41,7 @@ async function waitFor(fn, label, timeout = 30000) {
   throw new Error(`Timed out: ${label}; last result: ${JSON.stringify(last)}`);
 }
 async function joined(session) {
-  return waitFor(async () => { const g = await game(session); return g.state?.signon === 4 && !g.state.serverActive && g.state.map === 'maps/e1m1.bsp' && g.network.some(c => c.open) ? g : false; }, 'joining the selected room');
+  return waitFor(async () => { const g = await game(session); const complete = await evaluate(session, "!document.getElementById('leave').hidden && document.getElementById('network-status').textContent.startsWith('Connected to')"); return complete && g.state?.signon === 4 && !g.state.serverActive && g.state.map === 'maps/e1m1.bsp' && g.network.some(c => c.open) ? g : false; }, 'joining the selected room');
 }
 async function selectRoom(session, mode) {
   await browser(session, ['press', 'Escape']);
@@ -59,8 +59,8 @@ async function leave(session) {
 }
 function passed(label) { checks.push(label); console.log(`PASS ${label}`); }
 
-// Read original BSP geometry only to find two normal spawn positions with a
-// clear shot. The test never teleports players, edits entities, or enables cheats.
+// Read original BSP geometry to check the shot after ordinary movement.
+// The test never teleports players, edits entities, or enables cheats.
 async function mapVisibility() {
   const pak = Buffer.from(await (await fetch(`${url}/assets/pak0.pak`)).arrayBuffer());
   let map;
@@ -106,6 +106,19 @@ async function aim(session, target) {
   }
   throw new Error('Could not aim at the other player using ordinary look controls');
 }
+async function walk(session, target) {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const state = (await game(session)).state;
+    const distance = Math.hypot(target[0] - state.origin[0], target[1] - state.origin[1]);
+    if (distance < 10) return;
+    await aim(session, target);
+    const duration = Math.min(1000, distance / 160 * 1000);
+    const jump = attempt >= 2 ? '\n+jump' : '';
+    await evaluate(session, `window.quake.command(${JSON.stringify('cl_forwardspeed 160\n+forward' + jump)}); setTimeout(()=>window.quake.command('-forward\\n-jump'),${duration}); true`);
+    await delay(duration + 150);
+  }
+  throw new Error(`Could not walk to ${target}; position ${JSON.stringify((await game(session)).state.origin)}`);
+}
 await mkdir(artifacts, { recursive: true });
 try {
   if (!publicUrl) {
@@ -120,6 +133,11 @@ try {
   assert.equal(dm.fragLimit, 20); assert.equal(dm.timeLimit, 10); assert.equal(dm.maxPlayers, 8);
   assert.notEqual(coop.url, dm.url); assert.equal(new URL(coop.url).port, new URL(dm.url).port);
   assert.equal((await fetch(`${url}/api/multiplayer?mode=invalid`)).status, 400);
+  if (!publicUrl) {
+    await delay(7100);
+    const idle = await (await fetch(`${url}/api/multiplayer/status?mode=deathmatch`)).json();
+    assert.ok(idle.serverTime >= 7);
+  }
   for (const [index, session] of sessions.entries()) {
     await browser(session, ['open', `${url}/?mode=${index === 2 ? 'coop' : 'deathmatch'}`]);
     await browser(session, ['snapshot', '-i']);
@@ -127,6 +145,10 @@ try {
     await waitFor(async () => await evaluate(session, 'window.quake?.ready && window.quake.state().signon===4'), 'single-player launch', 60000);
     await browser(session, ['press', 'Escape']);
     await selectRoom(session, index === 2 ? 'coop' : 'deathmatch');
+    if (index === 0 && !publicUrl) {
+      const fresh = await (await fetch(`${url}/api/multiplayer/status?mode=deathmatch`)).json();
+      assert.ok(fresh.serverTime < 5, 'first player starts a fresh round after the empty server has been idle');
+    }
     if (index < 2) { await command(session, `name ${names[index]}`); assert.equal((await game(session)).state.totalMonsters, 0); }
   }
   assert.ok((await game(sessions[2])).state.totalMonsters > 0);
@@ -143,12 +165,23 @@ try {
   const visible = await mapVisibility(); let positions;
   for (let attempt = 0; attempt < 24; attempt++) {
     const a = (await game(sessions[0])).state, b = (await game(sessions[1])).state;
-    console.log('SPAWNS', a.origin, b.origin, visible(a.origin, b.origin));
-    if (Math.hypot(...a.origin.map((n, i) => n - b.origin[i])) < 600 && visible(a.origin, b.origin)) { positions = [a.origin, b.origin]; break; }
-    await leave(sessions[1]); await selectRoom(sessions[1], 'deathmatch'); await command(sessions[1], `name ${names[1]}`);
-    if (attempt % 4 === 3) { await leave(sessions[0]); await selectRoom(sessions[0], 'deathmatch'); await command(sessions[0], `name ${names[0]}`); }
+    // Two original E1M1 spawns bordering the outdoor stairs. Walk around the
+    // separating wall using real input, keeping the original spawn system.
+    if (Math.abs(a.origin[0] - 528) < 2 && Math.abs(b.origin[0] + 272) < 2) {
+      for (const target of [[-160,2928,-56], [-160,2080,-152]]) await walk(sessions[1], target);
+      await walk(sessions[0], [320,1888,-168]);
+      positions = [(await game(sessions[0])).state.origin, (await game(sessions[1])).state.origin];
+      assert.ok(visible(...positions), 'players walked into an unobstructed firing position');
+      break;
+    }
+    // Keep alpha's useful spawn once selected; only cycle beta after that.
+    if (Math.abs(a.origin[0] - 528) < 2) {
+      await leave(sessions[1]); await selectRoom(sessions[1], 'deathmatch'); await command(sessions[1], `name ${names[1]}`);
+    } else {
+      await leave(sessions[0]); await selectRoom(sessions[0], 'deathmatch'); await command(sessions[0], `name ${names[0]}`);
+    }
   }
-  assert.ok(positions, 'normal deathmatch spawn points provide a clear shot');
+  assert.ok(positions, 'players reach the original E1M1 courtyard spawns');
   const victimBefore = (await game(sessions[1])).state.health;
   await command(sessions[1], 'god 1\ngive h 999\nsetpos 0 0 0');
   await delay(200);
@@ -174,6 +207,9 @@ try {
   await delay(1800); await command(sessions[1], '+attack'); await delay(150); await command(sessions[1], '-attack');
   const respawn = await waitFor(async () => { const state = (await game(sessions[1])).state; return state.health === 100 && state.signon === 4 ? state : false; }, 'victim respawns by pressing fire');
   combat = { positions, victimBefore, damagedHealth: damage.health, scores, respawn };
+  await browser(sessions[0], ['snapshot', '-i']);
+  await browser(sessions[0], ['find', 'role', 'button', 'click', '--name', 'Click to play']);
+  await waitFor(() => evaluate(sessions[0], 'document.pointerLockElement===document.getElementById("canvas")'), 'explicit mouse capture after joining');
   await command(sessions[0], '+showscores');
   await browser(sessions[0], ['screenshot', path.join(artifacts, `deathmatch-scoreboard-${publicUrl ? 'public' : 'local'}.png`)]);
   await command(sessions[0], '-showscores');
@@ -201,7 +237,11 @@ try {
   passed('switching rooms preserves players in both games');
   for (const session of sessions) { assert.deepEqual((await game(session)).errors, []); await command(session, 'disconnect'); }
   passed('all three clients finish without JavaScript errors');
-} catch (error) { failure = error; console.error(error.stack); }
+} catch (error) {
+  failure = error; console.error(error.stack);
+  await browser(sessions[1], ['screenshot', path.join(artifacts, 'deathmatch-failure.png')]).catch(() => {});
+  await writeFile(path.join(artifacts, 'deathmatch-failure.json'), JSON.stringify(await Promise.all(sessions.map(async session => ({ session, game: await game(session).catch(problem => problem.message), ui: await evaluate(session, "({pointerLock:!!document.pointerLockElement,leaveHidden:document.getElementById('leave').hidden,joinDisabled:document.getElementById('join').disabled,status:document.getElementById('network-status').textContent})").catch(problem => problem.message) }))), null, 2));
+}
 finally {
   await writeFile(path.join(artifacts, `deathmatch-${publicUrl ? 'public' : 'local'}.json`), JSON.stringify({ url, checks, combat, error: failure?.stack, date: new Date().toISOString() }, null, 2));
   for (const session of sessions) await browser(session, ['close']).catch(() => {});

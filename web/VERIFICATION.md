@@ -19,7 +19,7 @@ The automation browser canceled downloads, including an independent tiny data-UR
 
 ## WebTransport verification
 
-`npm test` passes nine tests: six protocol tests covering arbitrary reliable-stream chunk boundaries, invalid and truncated frames, datagram sequencing with wraparound, stream backpressure, bounded datagram writes, and isolated socket cleanup; three configuration tests cover local defaults, public production addresses, disabled production diagnostics, and rejection of insecure or ambiguous endpoints.
+`npm test` passes twelve tests: six protocol tests covering arbitrary reliable-stream chunk boundaries, invalid and truncated frames, datagram sequencing with wraparound, stream backpressure, bounded datagram writes, and isolated socket cleanup; three configuration tests cover local defaults, public production addresses, disabled production diagnostics, and rejection of insecure or ambiguous endpoints; three room tests cover independent co-op/deathmatch rules, configurable limits and maps, and invalid settings.
 
 `npm run test:multiplayer` passed with two independent Chromium 152 browser sessions and the actual compiled engine on both clients and server:
 
@@ -32,12 +32,28 @@ The automation browser canceled downloads, including an independent tiny data-UR
 | Monster AI and attacks | An original `monster_army` acquired player two, moved and animated, and fired at that player, reducing health from 100 to 84. |
 | Monster combat and replication | Player one fired the original weapon, reducing the soldier's health from 30 to 6, then to -18. Both browsers received its matching corpse model, animation frame, position, and shared kill count of 1. |
 | Level changes | Both connections survived `changelevel e1m2`, received the next level's monsters, and returned to `e1m1`. |
-| Deathmatch | Switched to `deathmatch=1`, `coop=0` and completed the next sign-on. |
+| Deathmatch | Both players switched through the mode selector into the independent deathmatch engine while co-op retained its own rules. |
 | Disconnect/reconnect | Three cycles freed and reused player slots while the second player remained connected. |
 | Server loss | Both clients detected shutdown, then rejoined after a server restart. |
 | Browser errors | Neither final client reported JavaScript errors. |
 
 The test saves screenshots, server logs, and a JSON evidence report under ignored `web/test-artifacts/`. It uses reserved test ports 3102/4445 and closes its own browsers and server afterward. `AGENT_BROWSER_BIN` can specify the automation CLI location. The server and client artifacts were rebuilt with Emscripten 4.0.23; the browser build links loopback and WebTransport drivers only.
+
+## Deathmatch verification
+
+On October 6, 2026, `npm run test:deathmatch` passed with three isolated Chromium sessions: two deathmatch players and one co-op player. They used the actual native engine compiled to WebAssembly and the UI mode selector. The local test uses ports 3104/4446 and closes its own server and browsers afterward.
+
+| Flow | Result |
+|---|---|
+| Independent rooms | Two live engines shared one WebTransport port at `/quake` and `/deathmatch`; deathmatch had zero monsters while co-op retained its original enemies. Chat stayed in its own room. |
+| Empty room | After seven seconds of idle server time, the first player started a fresh native deathmatch round with its clock reset. |
+| Combat | Players reached an unobstructed firing position using ordinary movement, jumping and aiming on E1M1. The server rejected god, give-health and teleport cheats. Original weapon fire reduced the victim's health, killed them and spent ammunition. |
+| Scoring and respawn | Both clients received the killer's frag increment. The original scoreboard was captured, and fire respawned the victim with 100 health. |
+| Round limits | The configured defaults were 20 frags and 10 minutes. Private server commands lowered the thresholds to one frag and 0.001 minutes to exercise both native intermission paths. After five seconds, fire started a fresh round, reset scores and preserved both connections. |
+| Room switching | Switching one player between co-op and deathmatch preserved the other players, rules and monsters in both rooms. |
+| Mouse and errors | Toolbar transitions completed without automatic mouse recapture; all three clients finished without JavaScript errors. |
+
+Evidence, server logs and scoreboard screenshots are written to ignored `web/test-artifacts/deathmatch-local.json` and related files. Set `QUAKE_TEST_PUBLIC_URL` to run the same PvP and room-isolation flow against the public server. Public tests do not send administrative commands or shorten round limits.
 
 ## Public Google Compute Engine verification
 

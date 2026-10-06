@@ -20,7 +20,9 @@ Music is not bundled. Stock QuakeSpasm's shareware restrictions also apply in th
 
 Click **Launch Quake**, press **Esc** to release the mouse, then click **Join co-op**. The launcher starts an eight-player co-op server on `e1m1`, with the original monsters enabled at Normal difficulty. Players fight the same server-controlled enemies and share level progress and the monster kill count. Quake's original monster AI, attacks, damage, drops, and respawning players run in the authoritative engine. Open the same address in another tab or browser and join to play together. **Leave multiplayer** returns to the single-player start map. Use the original console for commands such as `name Ranger`, `say hello`, and `color 4 4`.
 
-Set `QUAKE_MULTIPLAYER_SKILL` before starting the server to choose `0` (Easy), `1` (Normal, default), `2` (Hard), or `3` (Nightmare). The startup config explicitly sets `coop 1`, `deathmatch 0`, and `nomonsters 0` before loading the map. In a running server terminal, change difficulty and reload a level with `skill 2` followed by `changelevel e1m1`.
+Choose **Deathmatch** in the toolbar and click **Join deathmatch** for original free-for-all PvP. Its separate eight-player room starts on `e1m1` with no monsters, a 20-frag limit, and a 10-minute time limit. Original weapon and item respawns, damage, death, scoring and player respawns run in the authoritative engine. Hold **Tab** for the scoreboard. Press fire after dying to respawn, and after the intermission to start the next round. Scores reset and the same arena reloads while players keep their connections. Deathmatch cannot be paused. Changing the selector and joining moves only you; the other room keeps running.
+
+Set `QUAKE_MULTIPLAYER_SKILL` before starting the server to choose `0` (Easy), `1` (Normal, default), `2` (Hard), or `3` (Nightmare). Co-op explicitly sets `coop 1`, `deathmatch 0`, and `nomonsters 0` before loading its map. In a running server terminal, change difficulty and reload a level with `coop: skill 2` followed by `coop: changelevel e1m1`.
 
 The server runs the same QuakeSpasm C engine under Node 20 or newer. Browser clients connect directly over HTTP/3 WebTransport: unreliable datagrams carry movement and world updates, and a reliable bidirectional stream carries sign-on and reliable game messages. There is no Quake UDP relay or legacy UDP driver in this WebAssembly build. Original protocol 666, QuakeC, physics, combat, and server simulation remain in the engine.
 
@@ -28,15 +30,18 @@ Default local addresses are `http://127.0.0.1:3000` for the page and `https://12
 
 The launcher installs missing npm dependencies and checks the official native HTTP/3 prebuild. Local EC certificates are pinned by SHA-256, valid for twelve days, and renewed while the server runs. They are stored in ignored `web/.local/`. Browser certificate checks stay enabled; the launcher does not install a root CA or change browser security settings. Use a current browser with native WebTransport support; no WebSocket fallback is used.
 
-For a deathmatch server, close the current project's server and run:
+Both rooms run automatically. To change deathmatch's arena and limits before starting:
 
 ```powershell
-$env:QUAKE_MULTIPLAYER_MODE = 'deathmatch'
-$env:QUAKE_MULTIPLAYER_MAP = 'e1m1'
+$env:QUAKE_DEATHMATCH_MAP = 'e1m1'
+$env:QUAKE_DEATHMATCH_FRAGLIMIT = '20'
+$env:QUAKE_DEATHMATCH_TIMELIMIT = '10'
 npm start
 ```
 
-When `npm start` runs in a terminal, type server console commands such as `changelevel e1m2`. The game server uses the PAKs in `runtime/id1`; browser-selected files are local to that client. Keep server and client game data compatible. Server progress is held in memory during this session; multiplayer persistence is not provided.
+Limits of `0` are unlimited; the time limit is in whole minutes. `QUAKE_MULTIPLAYER_MODE` chooses the default selection, and `QUAKE_COOP_MAP` (or the legacy `QUAKE_MULTIPLAYER_MAP`) chooses co-op's initial map. The public launcher accepts `?mode=deathmatch` to preselect deathmatch. `/api/multiplayer?mode=deathmatch` returns its connection details and actual rules; the `rooms` array lists both independent rooms. They share UDP 4433 at `/quake` and `/deathmatch`.
+
+When `npm start` runs in a terminal, use room prefixes for console commands, such as `deathmatch: changelevel e1m2` or `coop: changelevel e1m2`. Commands without a prefix target the configured default mode. The game servers use the PAKs in `runtime/id1`; browser-selected files are local to that client. Keep server and client game data compatible. Server progress is held in memory during this session; multiplayer persistence is not provided.
 
 Ports can be changed with `QUAKE_WEB_PORT` and `QUAKE_MULTIPLAYER_PORT`. When stopping a background server manually, use the PID in `web/server.pid` only after checking that its command line points to this project's `web/server.mjs`.
 
@@ -59,7 +64,7 @@ Dependencies are in `tools/emsdk` and `tools/gl4es`. This checkout uses:
 - GL4ES: `ec16bedd8819c475326f4f1a3063772c6d986e06`
 - WebTransport server and native QUIC transport: `@fails-components/webtransport` and `@fails-components/webtransport-transport-http3-quiche`, both `1.6.8`, pinned in `package-lock.json`.
 
-For manual dependency setup, run `npm ci --ignore-scripts`, then `node tools/setup-network.mjs`. Run `npm test` for protocol checks and `npm run test:multiplayer` for the two-browser integration test. The latter requires agent-browser and its Chromium browser. See [VERIFICATION.md](VERIFICATION.md) for the checked flows and their limits.
+For manual dependency setup, run `npm ci --ignore-scripts`, then `node tools/setup-network.mjs`. Run `npm test` for protocol and room configuration checks, `npm run test:multiplayer` for the co-op regression, and `npm run test:deathmatch` for the three-browser PvP and room-isolation integration test. Browser tests require agent-browser and its Chromium browser. See [VERIFICATION.md](VERIFICATION.md) for the checked flows and their limits.
 
 QuakeSpasm is GPL-licensed and GL4ES is MIT-licensed. License copies accompany the generated engine. Quake game assets retain their separate original license.
 

@@ -111,6 +111,12 @@ export async function startMultiplayer(project, options) {
   const accept = async (room, session) => {
     const { sessions, network } = room;
     if (sessions.size >= MAX_PLAYERS) { session.close({ closeCode: 2, reason: 'Server full' }); return; }
+    // Quake's clock keeps advancing in an empty dedicated server. Start a
+    // fresh native round when its first deathmatch player arrives.
+    if (room.id === 'deathmatch' && sessions.size === 0) {
+      const map = room.state().map;
+      room.command(`map ${/^[a-zA-Z0-9_]+$/.test(map) ? map : room.map}`);
+    }
     sessions.add(session);
     let id;
     const timeout = setTimeout(() => session.close({ closeCode: 3, reason: 'No game stream received' }), 5000);

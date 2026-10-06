@@ -74,10 +74,13 @@ const transport = createQuakeTransport(event => {
 window.__quakeErrors = [];
 window.addEventListener('error', event => window.__quakeErrors.push(event.message));
 window.addEventListener('unhandledrejection', event => window.__quakeErrors.push(String(event.reason)));
-// SDL also requests pointer lock during map changes. Chrome can reject those
-// requests after Esc or without a gesture; keep the explicit Click to play flow.
+// SDL also requests pointer lock during map changes and toolbar clicks. Let
+// the player opt in through Click to play, the canvas, or Fullscreen so Esc
+// reliably leaves the toolbar usable throughout a room transition.
 const nativePointerLock = canvas.requestPointerLock.bind(canvas);
+let captureRequested = false;
 canvas.requestPointerLock = (...args) => {
+  if (!captureRequested) return Promise.resolve();
   const result = nativePointerLock(...args);
   result?.catch(error => log(`Mouse capture: ${error.message}`));
   return result;
@@ -230,8 +233,10 @@ async function capture() {
   canvas.focus();
   if (pausedByToolbar) { command('pause'); pausedByToolbar = false; $('pause').textContent = 'Pause'; }
   try {
+    captureRequested = true;
     if (document.pointerLockElement !== canvas) await canvas.requestPointerLock();
   } catch (error) { log(`Mouse capture: ${error.message}`); }
+  finally { captureRequested = false; }
 }
 
 $('start').addEventListener('click', start);
@@ -252,7 +257,7 @@ $('join').addEventListener('click', async () => {
     command('disconnect');
     transport.closeAll();
     const connectionId = await connectQuake(transport, target);
-    command('stopdemo\nconnect webtransport');
+    command('stopdemo\nconnect webtransport\nmenu_main\ntogglemenu');
     await waitForGame(state => state.connectionId === connectionId && state.signon === 4 && !state.serverActive);
     document.exitPointerLock();
     $('leave').hidden = false;
@@ -269,7 +274,7 @@ $('join').addEventListener('click', async () => {
 });
 $('leave').addEventListener('click', async () => {
   leaving = true;
-  command('disconnect\nmap start');
+  command('disconnect\nmap start\nmenu_main\ntogglemenu');
   transport.closeAll();
   activeMode = null; updateJoinButton(); $('leave').hidden = true; $('pause').disabled = false;
   $('network-status').textContent = 'Returning to single player…';

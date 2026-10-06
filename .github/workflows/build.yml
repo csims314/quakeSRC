@@ -49,7 +49,9 @@ jobs:
           done
           curl --fail http://127.0.0.1:3103/healthz
           node --input-type=module -e "const c=await(await fetch('http://127.0.0.1:3103/api/multiplayer')).json(); if(!c.available || !c.monsters || c.mode!=='coop' || c.map!=='e1m1' || c.url!=='https://quake.example.com:4433/quake')process.exit(1);"
+          node --input-type=module -e "const c=await(await fetch('http://127.0.0.1:3103/api/multiplayer?mode=deathmatch')).json(); if(!c.available || c.monsters || c.mode!=='deathmatch' || c.map!=='e1m1' || c.fragLimit!==20 || c.timeLimit!==10 || c.maxPlayers!==8 || c.rooms.length!==2 || c.url!=='https://quake.example.com:4433/deathmatch')process.exit(1);"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/api/multiplayer/world)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:3103/api/multiplayer/world?mode=deathmatch')" = 404
       - name: Container logs
         if: always()
         run: docker logs quake-smoke 2>&1 || true
