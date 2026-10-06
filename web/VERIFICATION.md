@@ -55,6 +55,10 @@ On October 6, 2026, `npm run test:deathmatch` passed with three isolated Chromiu
 
 Evidence, server logs and scoreboard screenshots are written to ignored `web/test-artifacts/deathmatch-local.json` and related files. Set `QUAKE_TEST_PUBLIC_URL` to run the same PvP and room-isolation flow against the public server. Public tests do not send administrative commands or shorten round limits.
 
+The same public flow passed on October 6, 2026 against the GCE production image `quake-web:7e5e985a73257f5c77684633bc4be9ec2c6ec055`. Two deathmatch browsers joined while a third played co-op. Real weapon fire reduced the victim's health from 100 to 72, then killed them; both clients received the frag, and the victim respawned with 100 health. Explicit mouse capture, the scoreboard, room switching and clean disconnects passed without JavaScript errors. The separate public co-op test also passed chat, movement, a real monster attack and a shared monster kill on this image.
+
+GitHub Actions passed all twelve unit/configuration tests and startup checks for both production rooms. The GCE game container used approximately 134 MiB with 312 MiB available on the VM during the check, and the pre-existing WebTransportArena process remained running. The public tests use independent browser sessions on one computer; they do not establish eight-player load capacity or verify multiple client devices. Default 20-frag/10-minute rules were read back from the production engine; shortened round limits and restart behavior were exercised locally.
+
 ## Public Google Compute Engine verification
 
 Verified on October 6, 2026 at [quake.34.10.23.32.sslip.io](https://quake.34.10.23.32.sslip.io), using two isolated Chromium browser sessions on the development computer across the public Internet to the GCE VM. This is a public connection test, not a test of two separate client computers or eight simultaneous players.
