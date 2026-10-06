@@ -1,3 +1,11 @@
+{
+    # UDP 443 belongs to the existing WebTransportArena service. The page uses
+    # HTTPS over TCP; Quake's separate WebTransport endpoint uses UDP 4433.
+    servers {
+        protocols h1 h2
+    }
+}
+
 {$QUAKE_DOMAIN} {
     encode zstd gzip
     reverse_proxy quake:3000

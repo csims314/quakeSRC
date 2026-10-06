@@ -19,7 +19,7 @@ The automation browser canceled downloads, including an independent tiny data-UR
 
 ## WebTransport verification
 
-`npm test` passes six protocol tests: arbitrary reliable-stream chunk boundaries, invalid and truncated frames, datagram sequencing with wraparound, stream backpressure, bounded datagram writes, and isolated socket cleanup.
+`npm test` passes nine tests: six protocol tests covering arbitrary reliable-stream chunk boundaries, invalid and truncated frames, datagram sequencing with wraparound, stream backpressure, bounded datagram writes, and isolated socket cleanup; three configuration tests cover local defaults, public production addresses, disabled production diagnostics, and rejection of insecure or ambiguous endpoints.
 
 `npm run test:multiplayer` passed with two independent Chromium 152 browser sessions and the actual compiled engine on both clients and server:
 
@@ -39,4 +39,20 @@ The automation browser canceled downloads, including an independent tiny data-UR
 
 The test saves screenshots, server logs, and a JSON evidence report under ignored `web/test-artifacts/`. It uses reserved test ports 3102/4445 and closes its own browsers and server afterward. `AGENT_BROWSER_BIN` can specify the automation CLI location. The server and client artifacts were rebuilt with Emscripten 4.0.23; the browser build links loopback and WebTransport drivers only.
 
-Not verified: purchased full-game PAK files (not available locally), a full campaign playthrough, other browsers/devices, eight simultaneous players, Internet/LAN hosting, WAN packet loss/latency, gamepad input, or pixel-for-pixel native parity. Native UDP clients are incompatible with the browser server. The browser runtime uses the installed 0.97.0 development source; the separate prebuilt Windows executable is 0.96.3.
+## Public Google Compute Engine verification
+
+Verified on October 6, 2026 at [quake.34.10.23.32.sslip.io](https://quake.34.10.23.32.sslip.io), using two isolated Chromium browser sessions on the development computer across the public Internet to the GCE VM. This is a public connection test, not a test of two separate client computers or eight simultaneous players.
+
+| Flow | Evidence |
+|---|---|
+| Production build | GitHub Actions compiled the original engine, passed all nine tests, and started the production container with the checksum-verified shareware PAK mounted read-only. |
+| Public HTTPS | Caddy obtained a trusted Let's Encrypt certificate. The browser loaded normally with certificate verification enabled. `/healthz` returned 200 and the configuration advertised the public WebTransport endpoint, co-op, Normal difficulty, monsters, and eight-player capacity. |
+| Production diagnostics | `/api/multiplayer/world` returned 404 to public clients. |
+| Public multiplayer | Both clients launched through the page and joined through **Join co-op**. Reliable chat crossed the public WebTransport connection, and movement replicated to the other player. |
+| Monster combat | The original soldier, entity 95, attacked player two, reducing health from 100 to 84. Player one fired and killed it; both clients showed a shared kill count of 1 and the same corpse frame 21 at `[63.25, 607.75, 24]`. |
+| Errors and rendering | Both clients reported no JavaScript errors; gameplay screenshots were inspected. Both disconnected cleanly. |
+| Existing host service | The original WebTransportArena process remained running on TCP 8080 and UDP 443. Quake occupies TCP 80/443 and UDP 4433, and Caddy's page listener uses HTTP/1.1 and HTTP/2. |
+
+Run `npm run test:production` with `QUAKE_TEST_PUBLIC_URL` set to the public HTTPS origin to repeat the browser check against a fresh e1m1 server. Results and screenshots are saved under ignored `web/test-artifacts/`. Certificates and containers restart automatically; the VM's existing IP is now reserved. Server campaign progress remains in memory and resets when the game container restarts.
+
+Not verified: purchased full-game PAK files (not available locally), a full campaign playthrough, other browsers/devices, eight simultaneous players, controlled WAN packet loss/latency, gamepad input, or pixel-for-pixel native parity. Native UDP clients are incompatible with the browser server. The browser runtime uses the installed 0.97.0 development source; the separate prebuilt Windows executable is 0.96.3.
