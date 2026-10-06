@@ -5,7 +5,7 @@ import { DEFAULT_CHARACTER, validateManifest, installCharacters } from '../dist/
 import { readMdl } from '../../tools/characters/lib/mdl.mjs';
 import { decodePng } from '../../tools/characters/lib/png.mjs';
 import { RECOLOURED, FULLBRIGHT } from '../../tools/characters/lib/palette.mjs';
-import { buildCharacters } from '../../tools/characters/build.mjs';
+import { buildCharacters, sameFile } from '../../tools/characters/build.mjs';
 
 const root = new URL('../dist/characters/', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('manifest.json', root), 'utf8'));
@@ -71,6 +71,6 @@ test('committed character files match a fresh build', () => {
     if (name.endsWith('.png')) {
       // PNG compression can differ between zlib versions; compare pixels.
       assert.deepEqual(decodePng(readFileSync(new URL(name, root))).rgba, decodePng(bytes).rgba, name);
-    } else assert.ok(readFileSync(new URL(name, root)).equals(bytes), `${name} is out of date; run node tools/characters/build.mjs`);
+    } else assert.ok(sameFile(name, readFileSync(new URL(name, root)), bytes), `${name} is out of date; run node tools/characters/build.mjs`);
   }
 });

@@ -13,7 +13,12 @@ Nick
   Body and animation: LibreQuake player model (lq1/progs/player.mdl), commit
   4d2da523331f00211c97c90dc5af8672a2967618, under the license below.
 
-${readFileSync(new URL('vendor/librequake/COPYING', import.meta.url), 'utf8')}`;
+${readFileSync(new URL('vendor/librequake/COPYING', import.meta.url), 'utf8').replace(/\r\n/g, '\n')}`;
+
+// Windows checkouts may convert text files to CRLF; compare text by content.
+export const sameFile = (name, committed, built) => (/\.(json|txt)$/.test(name)
+  ? committed.toString('utf8').replace(/\r\n/g, '\n') === built.toString('utf8')
+  : committed.equals(built));
 
 export function buildCharacters() {
   const nick = buildNick();
@@ -34,7 +39,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const files = buildCharacters();
   if (process.argv.includes('--check')) {
     const stale = [...files].filter(([name, bytes]) => {
-      try { return !readFileSync(new URL(name, output)).equals(bytes); } catch { return true; }
+      try { return !sameFile(name, readFileSync(new URL(name, output)), bytes); } catch { return true; }
     }).map(([name]) => name);
     if (stale.length) { console.error(`Out of date: ${stale.join(', ')}. Run node tools/characters/build.mjs`); process.exit(1); }
     console.log('Character files are up to date.');
