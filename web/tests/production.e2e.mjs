@@ -76,14 +76,18 @@ try {
   await command(sessions[0], 'name PublicAlpha\nsay Public WebTransport chat verified');
   await command(sessions[1], 'name PublicBeta');
   await waitFor(async () => (await game(sessions[1])).log.some(line => line.includes('Public WebTransport chat verified')), 'reliable chat');
-  const before = (await game(sessions[0])).state.origin;
+  const firstPlayer = (await game(sessions[0])).state;
+  assert.ok(firstPlayer.players.length >= 2);
+  const before = firstPlayer.origin;
+  const playerSlot = firstPlayer.players.reduce((closest, player) =>
+    Math.hypot(...player.origin.map((n, i) => n - before[i])) < Math.hypot(...closest.origin.map((n, i) => n - before[i])) ? player : closest).slot;
   await command(sessions[0], '+forward'); await delay(500); await command(sessions[0], '-forward');
   const moved = await waitFor(async () => {
     const state = (await game(sessions[0])).state;
     return Math.hypot(...state.origin.map((n, i) => n - before[i])) > 20 ? state : false;
   }, 'server-authoritative movement');
   await waitFor(async () => {
-    const peer = (await game(sessions[1])).state.players.find(p => p.name === 'PublicAlpha');
+    const peer = (await game(sessions[1])).state.players.find(p => p.slot === playerSlot);
     return peer && Math.hypot(...peer.origin.map((n, i) => n - moved.origin[i])) < 20;
   }, 'movement replicated to the other browser');
   passed('reliable chat and player movement cross the public WebTransport connection');

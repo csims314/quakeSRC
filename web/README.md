@@ -24,7 +24,7 @@ Set `QUAKE_MULTIPLAYER_SKILL` before starting the server to choose `0` (Easy), `
 
 The server runs the same QuakeSpasm C engine under Node 20 or newer. Browser clients connect directly over HTTP/3 WebTransport: unreliable datagrams carry movement and world updates, and a reliable bidirectional stream carries sign-on and reliable game messages. There is no Quake UDP relay or legacy UDP driver in this WebAssembly build. Original protocol 666, QuakeC, physics, combat, and server simulation remain in the engine.
 
-Default addresses are `http://127.0.0.1:3000` for the page and `https://127.0.0.1:4433/quake` for WebTransport. Both bind to loopback, so this setup hosts players on this computer. Internet/LAN hosting is not configured. The optional server field accepts another compatible WebTransport server with a trusted HTTPS certificate.
+Default local addresses are `http://127.0.0.1:3000` for the page and `https://127.0.0.1:4433/quake` for WebTransport. Both bind to loopback, so the local launcher hosts players on this computer. Public co-op is hosted at [quake.34.10.23.32.sslip.io](https://quake.34.10.23.32.sslip.io) with WebTransport on UDP 4433; see [the deployment instructions](../deploy/README.md). The optional server field accepts another compatible WebTransport server with a trusted HTTPS certificate.
 
 The launcher installs missing npm dependencies and checks the official native HTTP/3 prebuild. Local EC certificates are pinned by SHA-256, valid for twelve days, and renewed while the server runs. They are stored in ignored `web/.local/`. Browser certificate checks stay enabled; the launcher does not install a root CA or change browser security settings. Use a current browser with native WebTransport support; no WebSocket fallback is used.
 

@@ -1,5 +1,7 @@
 # Local QuakeSpasm setup
 
+Public browser co-op: [Play Quake](https://quake.34.10.23.32.sslip.io). Click **Launch Quake**, release the mouse with **Esc**, then click **Join co-op**. Share the same link with other players to fight the original shareware episode's monsters together.
+
 For the browser version, double-click `launch-web.cmd`. It supports local single player and WebTransport multiplayer. Click **Join co-op** after launching to fight the original monsters with up to eight players; other browsers or tabs can join the same server. See [web/README.md](web/README.md) for controls, saves, difficulty, deathmatch, and rebuild instructions. The native version is still available through `launch.cmd`.
 
 Double-click `launch.cmd` to play. From PowerShell you can also run:
