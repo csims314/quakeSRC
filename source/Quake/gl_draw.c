@@ -344,12 +344,13 @@ qpic_t *Draw_TryCachePic (const char *path, int width, int height)
 	if (data)
 	{
 		gl.gltexture = TexMgr_LoadImage (NULL, path, imagewidth, imageheight, SRC_RGBA, data, path, 0,
-										  TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP | TEXPREF_MIPMAP);
+											  TEXPREF_ALPHA | TEXPREF_NOPICMIP | TEXPREF_MIPMAP);
 		Hunk_FreeToLowMark (mark);
 		gl.sl = 0;
-		gl.sh = (float)imagewidth/(float)TexMgr_PadConditional(imagewidth);
+		// RGBA images are resampled to the texture size, not padded like indexed pics.
+		gl.sh = 1;
 		gl.tl = 0;
-		gl.th = (float)imageheight/(float)TexMgr_PadConditional(imageheight);
+		gl.th = 1;
 		pic = &menu_cachepics[menu_numcachepics++];
 		q_strlcpy (pic->name, path, sizeof(pic->name));
 		pic->pic.width = width;

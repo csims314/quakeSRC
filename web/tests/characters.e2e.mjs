@@ -3,10 +3,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer as portProbe } from 'node:net';
+import { decodePng } from '../../tools/characters/lib/png.mjs';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const port = Number(process.env.QUAKE_TEST_WEB_PORT || 3108);
@@ -58,6 +59,36 @@ const seen = async (session, slot) => (await state(session)).players.find(player
 const shot = (session, name) => evaluate(session, "document.getElementById('capture').hidden = true; true")
   .then(() => browser(session, ['screenshot', path.join(artifactDir, name)]));
 function passed(name) { checks.push(name); console.log(`PASS ${name}`); }
+
+async function checkHudPortrait(scale) {
+  await command(nick, `scr_sbarscale ${scale}\ngamma 1\ncontrast 1\ngl_texturemode GL_NEAREST`);
+  await delay(350);
+  const filename = `nick-hud-scale-${scale}.png`;
+  await shot(nick, filename);
+  const rendered = decodePng(await readFile(path.join(artifactDir, filename))),
+    portrait = decodePng(await readFile(path.join(project, 'web/dist/characters/nick/face1.png'))),
+    box = await evaluate(nick, `(()=>{
+      const canvas = document.getElementById('canvas'), rect = canvas.getBoundingClientRect();
+      const scale = Math.min(${scale}, canvas.width / 320), factor = rect.width / canvas.width;
+      return { x: rect.left + ((canvas.width - 320 * scale) / 2 + 112 * scale) * factor,
+        y: rect.top + (canvas.height - 24 * scale) * factor, size: 24 * scale * factor };
+    })()`);
+  const pixel = (image, x, y) => (Math.round(y) * image.width + Math.round(x)) * 4;
+  let fullError = 0, croppedError = 0, samples = 0;
+  for (let y = 1; y <= 9; y++) for (let x = 1; x <= 9; x++) {
+    const u = x / 10, v = y / 10,
+      actual = pixel(rendered, box.x + u * box.size, box.y + v * box.size),
+      full = pixel(portrait, u * (portrait.width - 1), v * (portrait.height - 1)),
+      cropped = pixel(portrait, u * (portrait.width - 1) * 0.75, v * (portrait.height - 1) * 0.75);
+    for (let channel = 0; channel < 3; channel++) {
+      fullError += Math.abs(rendered.rgba[actual + channel] - portrait.rgba[full + channel]);
+      croppedError += Math.abs(rendered.rgba[actual + channel] - portrait.rgba[cropped + channel]);
+      samples++;
+    }
+  }
+  evidence[`hudScale${scale}`] = { fullError: fullError / samples, croppedError: croppedError / samples };
+  assert.ok(fullError < croppedError * 0.7, `scale ${scale}: the HUD must show the full portrait, including its right/bottom edges`);
+}
 
 async function launchAndJoin(session) {
   await browser(session, ['find', 'role', 'button', 'click', '--name', 'Launch Quake']);
@@ -117,6 +148,9 @@ try {
   await delay(500);
   await shot(nick, 'nick-hud.png');
   passed('the other player sees Nick, and Nick sees the original Ranger');
+
+  for (const scale of [1, 2, 3]) await checkHudPortrait(scale);
+  passed('the complete portrait fits its HUD slot at every status-bar scale');
 
   await browser(nick, ['select', '#character', 'ranger']);
   await waitFor(async () => (await seen(ranger, 1)) === 'progs/player.mdl', 'switch to the Ranger reaches the other player');
