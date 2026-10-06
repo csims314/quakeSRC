@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { startMultiplayer } from './multiplayer.mjs';
 import { createInterface } from 'node:readline';
 import { serverConfig } from './config.mjs';
+import { listMusic, byteRange, MUSIC_FILE, musicType } from './music.mjs';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = path.join(project, 'web', 'dist');
@@ -30,6 +31,11 @@ const assets = {
   '/assets/quakespasm.pak': path.join(project, 'runtime', 'quakespasm.pak'),
   '/assets/quake106.zip': path.join(project, 'runtime', 'id1', 'quake106.zip'),
   '/assets/shareware-license.txt': path.join(project, 'runtime', 'shareware-docs', 'SLICNSE.TXT'),
+};
+const musicDirectory = path.join(project, 'runtime', 'id1', 'music');
+const json = (res, value) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.writeHead(200).end(JSON.stringify(value));
 };
 
 const server = createServer(async (req, res) => {
@@ -58,9 +64,38 @@ const server = createServer(async (req, res) => {
       res.writeHead(200).end(JSON.stringify(response));
       return;
     }
+    // Public: room settings and each player's name, frags, ping and time online.
+    if (url.pathname === '/api/status') {
+      json(res, multiplayer ? multiplayer.publicStatus() : { available: false, players: 0, rooms: [] });
+      return;
+    }
+    if (url.pathname === '/api/music') { json(res, { tracks: await listMusic(musicDirectory) }); return; }
     let pathname = decodeURIComponent(url.pathname);
     if (pathname === '/favicon.ico') { res.writeHead(204).end(); return; }
+    if (pathname.startsWith('/assets/music/')) {
+      const name = pathname.slice('/assets/music/'.length);
+      if (!MUSIC_FILE.test(name)) { res.writeHead(404).end(); return; }
+      const file = path.join(musicDirectory, name);
+      const info = await stat(file);
+      if (!info.isFile()) { res.writeHead(404).end(); return; }
+      const range = byteRange(req.headers.range, info.size);
+      res.setHeader('Content-Type', musicType(name));
+      res.setHeader('Accept-Ranges', 'bytes');
+      if (range?.unsatisfiable) {
+        res.setHeader('Content-Range', `bytes */${info.size}`);
+        res.writeHead(416).end();
+        return;
+      }
+      const { start, end } = range || { start: 0, end: info.size - 1 };
+      res.setHeader('Content-Length', end - start + 1);
+      if (range) res.setHeader('Content-Range', `bytes ${start}-${end}/${info.size}`);
+      res.writeHead(range ? 206 : 200);
+      if (req.method === 'HEAD' || !info.size) res.end();
+      else createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
+      return;
+    }
     if (pathname === '/') pathname = '/index.html';
+    if (pathname === '/status') pathname = '/status.html';
     const file = assets[pathname] || path.resolve(root, `.${pathname}`);
     if (!assets[pathname] && !file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
     const info = await stat(file);

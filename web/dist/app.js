@@ -1,4 +1,6 @@
 import { createQuakeTransport, connectQuake } from './network.js';
+import { createMusicPlayer } from './music.js';
+import { createTouchControls, prefersTouch } from './touch.js';
 import { DEFAULT_CHARACTER, validateManifest, installCharacters } from './characters.js';
 
 const $ = id => document.getElementById(id);
@@ -130,6 +132,49 @@ canvas.requestPointerLock = (...args) => {
   return result;
 };
 
+const music = createMusicPlayer({ log });
+const musicReady = music.load().then(showMusic).catch(error => log(`Music: ${error.message}`));
+function showMusic({ yours, server }) {
+  const parts = [yours && `${yours} of your tracks`, server && `${server} from this server`].filter(Boolean);
+  $('music-status').textContent = parts.length ? parts.join(' and ') : 'none added';
+  $('music-clear').disabled = !yours;
+}
+async function addMusic(event) {
+  const input = event.target;
+  try {
+    const result = await music.addFiles([...input.files]);
+    showMusic(result);
+    $('music-note').textContent = [
+      result.added && `Added ${result.added} track${result.added === 1 ? '' : 's'}.`,
+      result.rejected.length && `Skipped ${result.rejected.join(', ')}.`,
+    ].filter(Boolean).join(' ');
+  } catch (error) { $('music-note').textContent = `Could not add music: ${error.message}`; }
+  if (!starting) $('loading').textContent = $('music-note').textContent;
+  input.value = '';
+}
+
+const touch = createTouchControls($('stage'), {
+  ready: () => ready,
+  move: (forward, side) => engine.ccall('Web_SetMove', null, ['number', 'number'], [forward, side]),
+  look: (yaw, pitch) => engine.ccall('Web_Look', null, ['number', 'number'], [yaw, pitch]),
+  key: (code, down) => engine.ccall('Web_Key', null, ['number', 'number'], [code, down ? 1 : 0]),
+  command: text => command(text),
+  state: () => window.quake.state(),
+});
+let touchChoice = null;
+try { touchChoice = localStorage.getItem('quake-touch'); } catch {}
+function setTouch(enabled, remember = false) {
+  touch.setEnabled(enabled);
+  $('touch-toggle').setAttribute('aria-pressed', String(enabled));
+  if (remember) try { localStorage.setItem('quake-touch', enabled ? 'on' : 'off'); touchChoice = enabled ? 'on' : 'off'; } catch {}
+  if (enabled) document.exitPointerLock();
+  updateCaptureHint();
+}
+// Touch play needs no mouse capture, so the Click to play prompt stays away.
+function updateCaptureHint() {
+  $('capture').hidden = !ready || touch.enabled || document.pointerLockElement === canvas;
+}
+
 function log(line) {
   console.log(line);
   logs.push(String(line));
@@ -141,7 +186,8 @@ function log(line) {
       command(`character ${currentCharacter().id}\nstopdemo\nmap start`);
       $('status').textContent = 'Running';
       $('cover').hidden = true;
-      $('capture').hidden = Boolean(document.pointerLockElement);
+      updateCaptureHint();
+      touch.refresh();
       for (const id of ['pause', 'backup', 'send-command']) $(id).disabled = false;
       updateJoinButton();
     }, 0);
@@ -211,8 +257,9 @@ async function start() {
   $('loading').textContent = 'Loading the engine and game data…';
   try {
     if (typeof createQuakeSpasm !== 'function') throw new Error('Browser engine is missing. Run build-web.cmd first.');
+    await musicReady;
     engine = await createQuakeSpasm({
-      canvas, noInitialRun: true, quakeTransport: transport,
+      canvas, noInitialRun: true, quakeTransport: transport, quakeMusic: music,
       locateFile: name => `engine/${name}`,
       print: log, printErr: log,
       onAbort: reportError,
@@ -227,6 +274,8 @@ async function start() {
       sync,
       logs,
       network: transport,
+      music,
+      touch,
       get ready() { return ready; },
     };
     engine.FS.mkdir('/quake');
@@ -282,6 +331,7 @@ async function capture() {
   if (!ready) return;
   canvas.focus();
   if (pausedByToolbar) { command('pause'); pausedByToolbar = false; $('pause').textContent = 'Pause'; }
+  if (touch.enabled) return;
   try {
     captureRequested = true;
     if (document.pointerLockElement !== canvas) await canvas.requestPointerLock();
@@ -339,7 +389,18 @@ $('leave').addEventListener('click', async () => {
 $('resume').addEventListener('click', capture);
 canvas.addEventListener('click', capture);
 canvas.addEventListener('contextmenu', event => event.preventDefault());
-document.addEventListener('pointerlockchange', () => { if (ready) $('capture').hidden = document.pointerLockElement === canvas; });
+document.addEventListener('pointerlockchange', updateCaptureHint);
+$('touch-toggle').addEventListener('click', () => setTouch(!touch.enabled, true));
+// A finger on the game turns touch controls on unless the player turned them off.
+$('stage').addEventListener('pointerdown', event => {
+  if (event.pointerType === 'touch' && !touch.enabled && touchChoice !== 'off') setTouch(true);
+}, true);
+setTouch(touchChoice ? touchChoice === 'on' : prefersTouch());
+for (const id of ['music-files', 'music-add']) $(id).addEventListener('change', addMusic);
+$('music-clear').addEventListener('click', async () => {
+  try { showMusic(await music.clearFiles()); $('music-note').textContent = 'Removed your music from this browser.'; }
+  catch (error) { $('music-note').textContent = `Could not remove music: ${error.message}`; }
+});
 $('pause').addEventListener('click', () => {
   command('pause'); pausedByToolbar = !pausedByToolbar;
   $('pause').textContent = pausedByToolbar ? 'Resume' : 'Pause';
@@ -348,7 +409,10 @@ $('pause').addEventListener('click', () => {
 $('fullscreen').addEventListener('click', async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
-    else await $('stage').requestFullscreen();
+    else {
+      await $('stage').requestFullscreen();
+      if (touch.enabled) await screen.orientation?.lock?.('landscape').catch(() => {});
+    }
     if (ready) await capture();
   } catch (error) { log(`Fullscreen: ${error.message}`); }
 });

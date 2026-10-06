@@ -28,6 +28,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 										//  on the command line
 #define DEFAULT_NUM_PARTICLES	16384
 
+#ifdef __EMSCRIPTEN__
+/* The browser's GL emulation copies each glBegin/glEnd batch into a temporary
+ * buffer of at most 2 MB, and a full particle system needs several times that.
+ * Restart the batch every so often so large bursts stay within the limit;
+ * glFlush makes GL4ES draw each batch instead of merging it with the next. */
+#define PARTICLE_BATCH	2048
+#define PARTICLE_BATCH_SPLIT(count, mode) \
+	if (++(count) > PARTICLE_BATCH) { glEnd (); glFlush (); glBegin (mode); (count) = 1; }
+#else
+#define PARTICLE_BATCH_SPLIT(count, mode)
+#endif
+
 static int	ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
 static int	ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};
 static int	ramp3[8] = {0x6d, 0x6b, 6, 5, 4, 3};
@@ -831,6 +843,9 @@ void R_DrawParticles (void)
 	GLubyte			color[4], *c; //johnfitz -- particle transparency
 	extern	cvar_t	r_particles; //johnfitz
 	//float			alpha; //johnfitz -- particle transparency
+#ifdef __EMSCRIPTEN__
+	int			batched = 0;
+#endif
 
 	if (!r_particles.value)
 		return;
@@ -852,6 +867,7 @@ void R_DrawParticles (void)
 		glBegin (GL_QUADS);
 		for (p=active_particles ; p ; p=p->next)
 		{
+			PARTICLE_BATCH_SPLIT (batched, GL_QUADS);
 			// hack a scale up to keep particles from disapearing
 			scale = (p->org[0] - r_origin[0]) * vpn[0]
 				  + (p->org[1] - r_origin[1]) * vpn[1]
@@ -897,6 +913,7 @@ void R_DrawParticles (void)
 		glBegin (GL_TRIANGLES);
 		for (p=active_particles ; p ; p=p->next)
 		{
+			PARTICLE_BATCH_SPLIT (batched, GL_TRIANGLES);
 			// hack a scale up to keep particles from disapearing
 			scale = (p->org[0] - r_origin[0]) * vpn[0]
 				  + (p->org[1] - r_origin[1]) * vpn[1]

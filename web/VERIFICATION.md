@@ -61,7 +61,7 @@ GitHub Actions passed all twelve unit/configuration tests and startup checks for
 
 ## Player character verification
 
-On October 6, 2026, `npm run test:characters` passed with two isolated Chromium sessions against the rebuilt engine on local ports 3106/4449. One player chose Nick on the launch screen; the other stayed the Ranger.
+On October 6, 2026, `npm run test:characters` passed with two isolated Chromium sessions against the rebuilt engine on local ports 3108/4452. One player chose Nick on the launch screen; the other stayed the Ranger.
 
 | Flow | Result |
 |---|---|
@@ -75,6 +75,23 @@ On October 6, 2026, `npm run test:characters` passed with two isolated Chromium 
 `npm test` adds six character checks. They cover manifest validation and the engine's model limits (143 frames, vertex, triangle and skin bounds). They also check that the head avoids recoloured and fullbright palette entries and that the 28 status-bar faces are complete. Installation and the committed assets matching a fresh, deterministic build are covered too. With the character engine build, `npm run test:multiplayer` passed all ten existing checks. The gibbed-head substitution is covered by code review, not by an automated gib.
 
 `npm run test:deathmatch` is timing-sensitive at the E1M1 courtyard stairs. Its scripted walk can stall on a stair lip at y=2384, and it gets 12 timed attempts to jump past. It passed with the character engine in a traced run. In a traced run with the previous engine, the walker stalled at the same lip for two attempts before a later jump got through. Across all runs, the previous engine passed 4 of 4 and the character engine 1 of 4, so a failure at that step means the walk needs another attempt, not a broken engine. Client frame rate was identical with both engines (240 fps, worst frame 4-5 ms).
+
+## Touch, music and status verification
+
+On October 6, 2026, `npm run test:touch` passed in agent-browser's Chromium, emulating a touch-only landscape phone (915×412, no mouse) through the DevTools protocol. Touches were real browser touch events, not script-created pointer events. The test uses ports 3106/4448 and closes its own server and browser afterward.
+
+| Flow | Result |
+|---|---|
+| Touch detection | A touch-only device turned touch controls on. Launch Quake was tapped, and the Click to play mouse-capture prompt never appeared. The start screen fits a 412-pixel-high landscape screen. |
+| Movement and look | The left stick moved the player about 330 units through the engine's normal movement path. A right-side drag turned the view 45° and pitched it down. Stick and look held by two fingers at once moved and turned together. |
+| Buttons and menus | Fire spent ammunition. Menu opened the original main menu, the controls switched to the arrow pad, and Back closed it. |
+| Player music | Ten generated WAV tracks were added through the soundtrack picker; a misnamed file was skipped with a message. The engine's start-map request (track04) streamed from the player's file, paused and resumed with the game, and followed `bgmvolume`. |
+| Server music | With generated OGG tracks in `runtime/id1/music`, `/api/music` listed them, `/assets/music/` answered byte ranges with 206 and impossible ranges with 416, and a path-traversal name returned 404. A separate desktop Chromium session streamed the start map's `track04.ogg` from the server, downloading only that track, while touch controls stayed off and Click to play remained. |
+| Status | After joining co-op by touch, `/api/status` listed the player by name with ping and time online, and only those fields. The `/status` page showed the player row. No browser errors. |
+
+On the public server (image `63dc829`), with ten CC0 placeholder MP3 tracks in `deploy/game-data/music`, a desktop Chromium session heard the original game's track for every part of the shareware episode, each starting by itself and streaming from the server: the start map (track 4), E1M1–E1M8 (6, 8, 9, 5, 11, 4, 7, 10), the end-of-level statistics (3), the Episode 1 ending text (2), the co-op and deathmatch rooms (6) and the return to single player (4). The statistics and ending screens were reached by moving the player onto each level's exit with `setpos`. This check found that E1M7's exit froze the browser game: a particle burst exceeded the 2 MB limit of the GL emulation's temporary buffers. After drawing particles in 2048-particle batches, the largest such draw was 0.6 MB and the ending ran without errors.
+
+Not verified: a physical phone or tablet, iOS Safari (including its Ogg support and lack of element fullscreen), or Android orientation lock. `npm run test:multiplayer` and `npm run test:deathmatch` passed again with the rebuilt engine.
 
 ## Public Google Compute Engine verification
 

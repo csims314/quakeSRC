@@ -20,7 +20,7 @@ The free Quake 1.06 shareware episode is installed in `runtime/id1/pak0.pak`, so
 
 To play the full original campaign, copy `pak0.pak` and `pak1.pak` from the `id1` directory of your purchased original Quake installation into `runtime/id1/`, replacing the shareware PAK when prompted. The commercial game data is not included.
 
-For the original soundtrack, copy your music files into `runtime/id1/music/`, using names such as `track02.ogg`. See `source/Quakespasm-Music.txt` for details.
+For the original soundtrack, copy your music files into `runtime/id1/music/`, using names such as `track02.ogg`. See `source/Quakespasm-Music.txt` for details. The browser version streams the same files to its players, and each player can also add their own; see [web/README.md](web/README.md#music).
 
 ## Layout
 

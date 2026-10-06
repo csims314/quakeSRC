@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { createServer as portProbe } from 'node:net';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const port = Number(process.env.QUAKE_TEST_WEB_PORT || 3106);
-const quicPort = Number(process.env.QUAKE_TEST_MULTIPLAYER_PORT || 4449);
+const port = Number(process.env.QUAKE_TEST_WEB_PORT || 3108);
+const quicPort = Number(process.env.QUAKE_TEST_MULTIPLAYER_PORT || 4452);
 const url = `http://127.0.0.1:${port}`;
 const nativeCli = path.join(path.dirname(process.execPath), 'node_modules', 'agent-browser', 'bin', 'agent-browser-win32-x64.exe');
 const cli = process.env.AGENT_BROWSER_BIN || (process.platform === 'win32' && existsSync(nativeCli) ? nativeCli : 'agent-browser');
