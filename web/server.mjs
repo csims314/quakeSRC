@@ -25,6 +25,8 @@ const assets = {
   '/assets/pak0.pak': path.join(project, 'runtime', 'id1', 'pak0.pak'),
   '/assets/pak1.pak': path.join(project, 'runtime', 'id1', 'pak1.pak'),
   '/assets/quakespasm.pak': path.join(project, 'runtime', 'quakespasm.pak'),
+  '/assets/quake106.zip': path.join(project, 'runtime', 'id1', 'quake106.zip'),
+  '/assets/shareware-license.txt': path.join(project, 'runtime', 'shareware-docs', 'SLICNSE.TXT'),
 };
 
 const server = createServer(async (req, res) => {

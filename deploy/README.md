@@ -6,7 +6,8 @@ From the project root on that host:
 
 ```sh
 mkdir -p deploy/game-data
-# Copy your existing runtime/id1/pak0.pak into deploy/game-data.
+# Install curl, unzip and lhasa if needed, then prepare the original shareware:
+bash tools/setup-shareware.sh
 cp deploy/.env.example deploy/.env
 # Set QUAKE_DOMAIN to your real domain in deploy/.env.
 docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --build
