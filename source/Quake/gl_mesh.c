@@ -449,8 +449,10 @@ static void GLMesh_LoadVertexBuffer (qmodel_t *m, const aliashdr_t *hdr)
 	const aliasmesh_t *desc;
 	const short *indexes;
 	const trivertx_t *trivertexes;
+	const signed char *fine;
 	byte *vbodata;
 	int f;
+	const int xyzsize = hdr->finevertexes ? sizeof (meshxyzf_t) : sizeof (meshxyz_t);
 
 	if (!gl_glsl_alias_able)
 		return;
@@ -463,7 +465,7 @@ static void GLMesh_LoadVertexBuffer (qmodel_t *m, const aliashdr_t *hdr)
 	m->vboindexofs = 0;
 
 	m->vboxyzofs = 0;
-	totalvbosize += (hdr->numposes * hdr->numverts_vbo * sizeof (meshxyz_t)); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
+	totalvbosize += (hdr->numposes * hdr->numverts_vbo * xyzsize); // ericw -- what RMQEngine called nummeshframes is called numposes in QuakeSpasm
 
 	m->vbostofs = totalvbosize;
 	totalvbosize += (hdr->numverts_vbo * sizeof (meshst_t));
@@ -476,6 +478,7 @@ static void GLMesh_LoadVertexBuffer (qmodel_t *m, const aliashdr_t *hdr)
 	desc = (aliasmesh_t *) ((byte *) hdr + hdr->meshdesc);
 	indexes = (short *) ((byte *) hdr + hdr->indexes);
 	trivertexes = (trivertx_t *) ((byte *)hdr + hdr->vertexes);
+	fine = hdr->finevertexes ? (const signed char *) ((byte *)hdr + hdr->finevertexes) : NULL;
 
 // upload indices buffer
 
@@ -495,6 +498,25 @@ static void GLMesh_LoadVertexBuffer (qmodel_t *m, const aliashdr_t *hdr)
 		int v;
 		meshxyz_t *xyz = (meshxyz_t *) (vbodata + (f * hdr->numverts_vbo * sizeof (meshxyz_t)));
 		const trivertx_t *tv = trivertexes + (hdr->numverts * f);
+
+		if (fine)
+		{
+			meshxyzf_t *xyzf = (meshxyzf_t *) (vbodata + (f * hdr->numverts_vbo * sizeof (meshxyzf_t)));
+			const signed char *fv = fine + (hdr->numverts * f * FINEVERTEX_SIZE);
+			for (v = 0; v < hdr->numverts_vbo; v++)
+			{
+				const signed char *fraction = fv + desc[v].vertindex * FINEVERTEX_SIZE;
+				int k;
+
+				for (k = 0; k < 3; k++)
+				{
+					xyzf[v].xyz[k] = tv[desc[v].vertindex].v[k] + fraction[k] / 256.f;
+					xyzf[v].normal[k] = fraction[3 + k];
+				}
+				xyzf[v].normal[3] = 0;
+			}
+			continue;
+		}
 
 		for (v = 0; v < hdr->numverts_vbo; v++)
 		{

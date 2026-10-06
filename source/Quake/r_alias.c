@@ -93,8 +93,9 @@ model and pose.
 */
 static void *GLARB_GetXYZOffset (aliashdr_t *hdr, int pose)
 {
-	const int xyzoffs = offsetof (meshxyz_t, xyz);
-	return (void *) (currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + xyzoffs);
+	if (hdr->finevertexes)
+		return (void *) (currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyzf_t)) + offsetof (meshxyzf_t, xyz));
+	return (void *) (currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + offsetof (meshxyz_t, xyz));
 }
 
 /*
@@ -107,8 +108,9 @@ given model and pose.
 */
 static void *GLARB_GetNormalOffset (aliashdr_t *hdr, int pose)
 {
-	const int normaloffs = offsetof (meshxyz_t, normal);
-	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + normaloffs);
+	if (hdr->finevertexes)
+		return (void *) (currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyzf_t)) + offsetof (meshxyzf_t, normal));
+	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof (meshxyz_t)) + offsetof (meshxyz_t, normal));
 }
 
 /*
@@ -247,11 +249,21 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 	GL_EnableVertexAttribArrayFunc (pose2NormalAttrIndex);
 
 	GL_VertexAttribPointerFunc (texCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, 0, (void *)(intptr_t)currententity->model->vbostofs);
-	GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
-	GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
-// GL_TRUE to normalize the signed bytes to [-1 .. 1]
-	GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
-	GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+	if (paliashdr->finevertexes)
+	{
+		GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyzf_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
+		GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 3, GL_FLOAT, GL_FALSE, sizeof (meshxyzf_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
+		GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyzf_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
+		GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyzf_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+	}
+	else
+	{
+		GL_VertexAttribPointerFunc (pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose1));
+		GL_VertexAttribPointerFunc (pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof (meshxyz_t), GLARB_GetXYZOffset (paliashdr, lerpdata.pose2));
+	// GL_TRUE to normalize the signed bytes to [-1 .. 1]
+		GL_VertexAttribPointerFunc (pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose1));
+		GL_VertexAttribPointerFunc (pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof (meshxyz_t), GLARB_GetNormalOffset (paliashdr, lerpdata.pose2));
+	}
 
 // set uniforms
 	GL_Uniform1fFunc (blendLoc, blend);

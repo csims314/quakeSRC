@@ -3064,6 +3064,39 @@ void Mod_SetExtraFlags (qmodel_t *mod)
 
 /*
 =================
+Mod_LoadAliasFineVertexes
+
+Optional extension: after the last frame a model may carry FINEVERTEX_SIZE
+signed bytes per vertex per pose (each coordinate's remainder in 1/256ths of a
+scale step, then the exact unit normal * 127), the byte count and the tag
+"QSFV". The GLSL alias renderer draws with them; the fixed-function path and
+other engines ignore the trailing data and draw the usual 8-bit positions and
+162 light normals. The extra precision stops a detailed skin
+swimming over parts that move less than a step between frames, and its
+lighting banding and flickering as normals snap between directions.
+=================
+*/
+static void Mod_LoadAliasFineVertexes (const byte *framesend, int filesize)
+{
+	int			count, expected;
+	signed char	*fine;
+
+	pheader->finevertexes = 0;
+	expected = pheader->numposes * pheader->numverts * FINEVERTEX_SIZE;
+	if (filesize < 8 || (int)(framesend - mod_base) + expected + 8 != filesize)
+		return;
+	if (memcmp (mod_base + filesize - 4, "QSFV", 4))
+		return;
+	memcpy (&count, mod_base + filesize - 8, sizeof(count));
+	if (LittleLong (count) != expected)
+		return;
+	fine = (signed char *) Hunk_Alloc (expected);
+	memcpy (fine, framesend, expected);
+	pheader->finevertexes = (byte *)fine - (byte *)pheader;
+}
+
+/*
+=================
 Mod_LoadAliasModel
 =================
 */
@@ -3078,6 +3111,7 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 	daliasframetype_t	*pframetype;
 	daliasskintype_t	*pskintype;
 	int					start, end, total;
+	int					filesize = com_filesize;	// before any other file is read
 
 	start = Hunk_LowMark ();
 
@@ -3194,6 +3228,7 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 	}
 
 	pheader->numposes = posenum;
+	Mod_LoadAliasFineVertexes ((byte *)pframetype, filesize);
 
 	mod->type = mod_alias;
 

@@ -2,7 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { readMdl, quantizeFrames, writeMdl } from '../lib/mdl.mjs';
 import { createQuantizer, SKIN_INDICES, PICTURE_INDICES } from '../lib/palette.mjs';
-import { components, allFramePositions, track, blend, lightNormals, groupCentroid } from '../lib/compose.mjs';
+import { components, allFramePositions, track, blend, smoothNormals, steadyLightNormals, groupCentroid } from '../lib/compose.mjs';
+import { nearestLightNormal, lightNormals as lightNormalTable } from '../lib/math.mjs';
 import { encodePng } from '../lib/png.mjs';
 import { buildHead, loadFront, frontGrid, RINGS } from './head.mjs';
 import { frontTexture, backTexture } from './textures.mjs';
@@ -77,13 +78,18 @@ export function buildPlayer(head = buildHead(loadFront()), atlas = headAtlas(cre
   ];
   const stverts = [...keep.map(i => body.stverts[i]), ...head.vertices.map(v => stvert(v, ATLAS.front))];
   const placed = head.vertices.map(v => v.position.map((p, k) => p + HEAD_ORIGIN[k]));
-  const headTriangles = head.triangles;
+  const headFrames = frames.map((_, f) => placed.map((p, i) => blend(headMotion[f], chestMotion[f], p, head.vertices[i].weight)));
+  const headDirections = headFrames.map(positions => smoothNormals(positions, head.triangles));
+  const headNormals = steadyLightNormals(headDirections, FRAME_NAMES.map(name => name.replace(/\d+$/, '')));
+  // The body keeps LibreQuake's light normals, so it is lit the same with or without fine data.
+  const table = lightNormalTable();
   const outFrames = frames.map((positions, f) => {
-    const headPositions = placed.map((p, i) => blend(headMotion[f], chestMotion[f], p, head.vertices[i].weight));
+    const bodyNormals = keep.map(i => body.frames[f].verts[i * 4 + 3]);
     return {
       name: FRAME_NAMES[f],
-      positions: [...keep.map(i => positions[i]), ...headPositions],
-      normals: [...keep.map(i => body.frames[f].verts[i * 4 + 3]), ...lightNormals(headPositions, headTriangles)],
+      positions: [...keep.map(i => positions[i]), ...headFrames[f]],
+      normals: [...bodyNormals, ...headNormals[f]],
+      directions: [...bodyNormals.map(n => table[n]), ...headDirections[f]],
     };
   });
   const quantized = quantizeFrames(outFrames);
@@ -99,7 +105,8 @@ export function buildGibHead(atlas = headAtlas(createQuantizer(palette, SKIN_IND
   const head = buildHead(loadFront(), { rings: RINGS.filter(z => z >= -4.95), bottom: -5.2 });
   const scale = 1.35, lift = 5.2 * scale - 1.5;
   const positions = head.vertices.map(v => [(v.position[0] - 0.2) * scale, v.position[1] * scale, v.position[2] * scale + lift]);
-  const quantized = quantizeFrames([{ name: 'frame1', positions, normals: lightNormals(positions, head.triangles) }]);
+  const directions = smoothNormals(positions, head.triangles);
+  const quantized = quantizeFrames([{ name: 'frame1', positions, normals: directions.map(nearestLightNormal), directions }]);
   const { skin, width, height } = skinWith(atlas);
   return writeMdl({
     ...quantized, eye: [0, 0, 0], synctype: 0, flags: 4, size: 6,

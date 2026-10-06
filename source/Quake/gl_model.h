@@ -301,6 +301,17 @@ typedef struct meshxyz_s
 	signed char normal[4];
 } meshxyz_t;
 
+// fine vertices: per pose per vertex, each coordinate's remainder in 1/256ths of a scale step,
+// then the exact unit normal * 127
+#define FINEVERTEX_SIZE	6
+
+// models with fine vertices keep positions as floats, in units of a scale step
+typedef struct meshxyzf_s
+{
+	float xyz[3];
+	signed char normal[4];
+} meshxyzf_t;
+
 typedef struct meshst_s
 {
 	float st[2];
@@ -364,6 +375,7 @@ typedef struct {
 	intptr_t		indexes;        // offset into extradata: numindexes unsigned shorts
 	intptr_t		vertexes;       // offset into extradata: numposes*vertsperframe trivertx_t
 	//ericw --
+	intptr_t		finevertexes;   // offset into extradata: numposes*numverts*FINEVERTEX_SIZE signed bytes, or 0
 
 	int					numposes;
 	int					poseverts;

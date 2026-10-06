@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { DEFAULT_CHARACTER, validateManifest, installCharacters } from '../dist/characters.js';
-import { readMdl } from '../../tools/characters/lib/mdl.mjs';
+import { readMdl, framePositions, FINE_STRIDE } from '../../tools/characters/lib/mdl.mjs';
+import { rigidFit, apply, sub, length } from '../../tools/characters/lib/math.mjs';
 import { decodePng } from '../../tools/characters/lib/png.mjs';
 import { RECOLOURED, FULLBRIGHT } from '../../tools/characters/lib/palette.mjs';
 import { buildCharacters, sameFile } from '../../tools/characters/build.mjs';
@@ -32,6 +33,31 @@ test("Nick's player model fits the engine and keeps every player animation", () 
   assert.ok(model.triangles.every(t => t.v.every(i => i >= 0 && i < model.stverts.length)));
 });
 
+test("Nick's face keeps its shape and lighting through the idle animations", () => {
+  // With only 8-bit positions each ring of the face rounds differently every frame, so the photo
+  // slides over the head; nearest light normals flip as the head nods, so its shading flickers.
+  const model = readMdl(readFileSync(new URL('nick/player.mdl', root)));
+  assert.ok(model.frames.every(frame => frame.fine), 'player.mdl must carry fine vertex data');
+  const face = model.stverts.flatMap((v, i) => (v.s >= 356 && v.s < 536 && v.t > 80 && v.t < 230 ? [i] : []));
+  assert.ok(face.length > 50);
+  const positions = model.frames.map(frame => framePositions(model, frame));
+  for (const animation of ['stand', 'axstnd']) {
+    const frames = model.frames.flatMap((frame, f) => (frame.name.replace(/\d+$/, '') === animation ? [f] : []));
+    for (const f of frames.slice(1)) {
+      const fit = rigidFit(face.map(i => positions[f - 1][i]), face.map(i => positions[f][i]));
+      const warp = Math.max(...face.map(i => length(sub(apply(fit, positions[f - 1][i]), positions[f][i]))));
+      assert.ok(warp < 0.02, `${model.frames[f].name} bends the face by ${warp.toFixed(3)} units`);
+      assert.ok(face.every(i => model.frames[f].verts[i * 4 + 3] === model.frames[frames[0]].verts[i * 4 + 3]), `${model.frames[f].name} changes the face's light normals`);
+    }
+  }
+  let worst = 0;
+  for (const frame of model.frames) for (let i = 0; i < model.stverts.length; i++) {
+    const normal = [3, 4, 5].map(k => frame.fine[i * FINE_STRIDE + k] / 127);
+    worst = Math.max(worst, Math.abs(length(normal) - 1));
+  }
+  assert.ok(worst < 0.02, `fine normals must be unit length (off by ${worst.toFixed(3)})`);
+});
+
 test("Nick's head never uses team colours or fullbright palette entries", () => {
   const model = readMdl(readFileSync(new URL('nick/player.mdl', root)));
   const skin = model.skins[0];
@@ -47,6 +73,7 @@ test('gib head and status-bar faces are complete', () => {
   const head = readMdl(readFileSync(new URL('nick/h_player.mdl', root)));
   assert.equal(head.frames.length, 1);
   assert.equal(head.flags, 4);
+  assert.ok(head.frames[0].fine, 'h_player.mdl must carry fine vertex data');
   for (const face of FACES) {
     const image = decodePng(readFileSync(new URL(`nick/${face}.png`, root)));
     assert.deepEqual([image.width, image.height], [96, 96], face);
