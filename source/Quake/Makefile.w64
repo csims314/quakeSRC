@@ -198,6 +198,7 @@ GLOBJS = \
 	gl_rlight.o \
 	gl_rmain.o \
 	gl_fog.o \
+	gl_effects.o \
 	gl_rmisc.o \
 	r_part.o \
 	r_world.o \

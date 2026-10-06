@@ -61,6 +61,13 @@ Ports can be changed with `QUAKE_WEB_PORT` and `QUAKE_MULTIPLAYER_PORT`. When st
 
 ## Engine and build
 
+The browser renderer includes a live planar mirror directly behind the stock
+`start` spawn: turn around to see Ranger from head to feet. Depth-aware volumetric
+fog with BSP-shadowed static lighting is available but disabled for now. See
+[RENDERING.md](RENDERING.md) for the plans,
+quality controls, map authoring keys and current lighting limits. Verify them
+with `npm run test:render:math` and `npm run test:render`.
+
 This is the project's QuakeSpasm C engine compiled to WebAssembly, using GL4ES to translate its OpenGL renderer to WebGL. It is not a JavaScript recreation. Rendering, audio scheduling, browser pointer lock, storage, and network capabilities differ from native applications; absolute pixel/timing parity is not guaranteed. The native prebuilt runtime is 0.96.3 and the installed development sources identify as 0.97.0.
 
 The launcher uses QuakeSpasm's `-nopackedpixels` option because GL4ES does not accept the packed desktop OpenGL lightmap upload format. Standard byte lightmaps preserve level lighting through WebGL.

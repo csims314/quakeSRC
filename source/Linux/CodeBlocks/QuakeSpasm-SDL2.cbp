@@ -109,6 +109,9 @@
 		<Unit filename="../../Quake/gl_fog.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="../../Quake/gl_effects.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="../../Quake/gl_mesh.c">
 			<Option compilerVar="CC" />
 		</Unit>

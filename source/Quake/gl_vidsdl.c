@@ -43,8 +43,27 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 /* The engine needs desktop GL entry points from the translation layer;
  * GL4ES itself needs the real GLES entry points from SDL. */
+static const GLubyte *(*web_driver_getstring)(GLenum);
+
+static const GLubyte *Web_DriverGetString(GLenum name)
+{
+	static char extensions[65536];
+	const GLubyte *value = web_driver_getstring(name);
+	if (name != GL_EXTENSIONS || !value) return value;
+	q_strlcpy(extensions, (const char *)value, sizeof(extensions));
+	/* WebGL exposes the GLES depth-texture capability under a different name.
+	 * Advertise the alias only after the real browser extension is enabled. */
+	if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(), "WEBGL_depth_texture"))
+		q_strlcat(extensions, " GL_OES_depth_texture ", sizeof(extensions));
+	return (const GLubyte *)extensions;
+}
+
 static void *Web_DriverProcAddress(const char *name)
 {
+	if (!strcmp(name, "glGetString")) {
+		web_driver_getstring = (const GLubyte *(*)(GLenum))SDL_GL_GetProcAddress(name);
+		return web_driver_getstring ? (void *)Web_DriverGetString : NULL;
+	}
 	return SDL_GL_GetProcAddress(name);
 }
 
@@ -55,6 +74,11 @@ static void Web_MainFramebufferSize(int *width, int *height)
 
 #define SDL_GL_GetProcAddress gl4es_GetProcAddress
 #endif
+
+void *GL_GetProcAddress(const char *name)
+{
+	return SDL_GL_GetProcAddress(name);
+}
 
 #ifdef __APPLE__
 #include <OpenGL/OpenGL.h>
@@ -834,6 +858,7 @@ static void VID_Restart (void)
 #ifndef __EMSCRIPTEN__
 	TexMgr_DeleteTextureObjects ();
 	GLSLGamma_DeleteTexture ();
+	R_EffectsDelete ();
 	R_ScaleView_DeleteTexture ();
 	R_DeleteShaders ();
 	GL_DeleteBModelVertexBuffer ();

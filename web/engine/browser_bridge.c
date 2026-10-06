@@ -123,7 +123,10 @@ EMSCRIPTEN_KEEPALIVE const char *Web_State(void)
             "{\"slot\":%d,\"name\":\"%s\",\"frags\":%d,\"ping\":%d,\"seconds\":%d,\"origin\":[%.3f,%.3f,%.3f]}",
             i + 1, name, frags, ping, seconds, position[0], position[1], position[2]);
     }
-    q_strlcpy(state + length, "]}", sizeof(state) - length);
+    q_strlcpy(state + length, "],", sizeof(state) - length);
+    length = strlen(state);
+    R_EffectsStatus(state + length, sizeof(state) - length);
+    q_strlcat(state, "}", sizeof(state));
     return state;
 }
 

@@ -434,6 +434,26 @@ void GLSLGamma_GammaCorrect (void);
 
 void R_ScaleView_DeleteTexture (void);
 
+/* Shared render effects; no gameplay or network state is changed. */
+void *GL_GetProcAddress (const char *name);
+extern qboolean r_reflectionpass;
+extern int r_viewstamp;
+void R_EffectsInit (void);
+void R_EffectsNewMap (void);
+void R_EffectsDelete (void);
+void R_EffectsBeginFrame (void);
+void R_EffectsEndFrame (void);
+qboolean R_EffectsSetupGL (void);
+qboolean R_EffectsViewport (void);
+qboolean R_EffectsUsingVFog (void);
+int R_EffectsStencilBits (void);
+void R_EffectsFogChanged (void);
+byte *R_EffectsVisibility (void);
+void R_EffectsFog (void);
+void R_EffectsDrawMirror (void);
+void R_EffectsStatus (char *out, size_t size);
+void R_AliasResetRenderCache (void);
+
 float GL_WaterAlphaForSurface (msurface_t *fa);
 
 #endif	/* GLQUAKE_H */

@@ -266,7 +266,7 @@ async function start() {
     }
     if (pendingRestore) { await applyRestore(pendingRestore); pendingRestore = null; }
     $('loading').textContent = 'Starting Quake…';
-    const args = ['-basedir', '/quake', '-userdir', '/user', '-heapsize', '196608', '-window', '-width', '1280', '-height', '720', '-noipx', '-nopackedpixels'];
+    const args = ['-basedir', '/quake', '-userdir', '/user', '-heapsize', '196608', '-window', '-width', '1280', '-height', '720', '-noipx', '-nopackedpixels', '+r_vfog', '0'];
     const result = engine.callMain(args);
     if (result?.catch) result.catch(reportError);
     syncTimer = window.setInterval(() => {

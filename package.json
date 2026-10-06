@@ -14,7 +14,9 @@
     "test:multiplayer": "node web/tests/multiplayer.e2e.mjs",
     "test:production": "node web/tests/production.e2e.mjs",
     "test:deathmatch": "node web/tests/deathmatch.e2e.mjs",
-    "test:touch": "node web/tests/touch.e2e.mjs"
+    "test:touch": "node web/tests/touch.e2e.mjs",
+    "test:render:math": "node tools/test-render-math.mjs",
+    "test:render": "node web/tests/render-effects.e2e.mjs"
   },
   "dependencies": {
     "@fails-components/webtransport": "1.6.8",
