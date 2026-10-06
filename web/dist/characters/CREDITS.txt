@@ -5,6 +5,10 @@ Nick
   Body and animation: LibreQuake player model (lq1/progs/player.mdl), commit
   4d2da523331f00211c97c90dc5af8672a2967618, under the license below.
 
+Chris
+  Head and status-bar faces: made from the Chris photo supplied for this project.
+  Body and animation: the same BSD-licensed LibreQuake player model as Nick.
+
 Copyright © 2019-2023
 Contributors to the LibreQuake project.  All rights reserved.
 

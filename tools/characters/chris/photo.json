@@ -1,0 +1,17 @@
+{
+  "description": "Measurements of the supplied Chris photo (739x1024, white background). The full photo is not committed.",
+  "width": 739,
+  "height": 1024,
+  "pixelsPerUnit": 86,
+  "center": [380, 467],
+  "front": { "x": 85, "y": 130, "width": 256, "height": 320, "pixelsPerTexel": 2.25 },
+  "hud": { "x": 25, "y": 110, "size": 700, "texels": 96 },
+  "landmarks": {
+    "eyes": [[298, 465], [463, 470]],
+    "brows": 431,
+    "noseTip": [388, 558],
+    "mouth": [[307, 661], [455, 667]],
+    "chin": 779,
+    "crown": 145
+  }
+}
