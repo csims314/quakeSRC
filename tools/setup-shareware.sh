@@ -23,4 +23,8 @@ echo "$PAK_HASH  $TEMPORARY/extracted/id1/pak0.pak" | sha256sum --check
 cp "$TEMPORARY/extracted/id1/pak0.pak" "$DATA_DIR/pak0.pak"
 cp "$ARCHIVE" "$DATA_DIR/quake106.zip"
 cp "$TEMPORARY/extracted/slicnse.txt" "$DATA_DIR/SLICNSE.TXT"
+# The DOS archive carries restrictive permissions on Linux. The unprivileged
+# game container needs read access through the read-only bind mount.
+chmod 0755 "$DATA_DIR"
+chmod 0644 "$DATA_DIR/pak0.pak" "$DATA_DIR/quake106.zip" "$DATA_DIR/SLICNSE.TXT"
 echo 'Verified original shareware game data prepared in deploy/game-data.'
