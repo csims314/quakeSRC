@@ -18,7 +18,10 @@ catch (error) {
   multiplayerError = error.message; console.error(`Multiplayer unavailable: ${error.stack}`);
 }
 if (multiplayer && (process.stdin.isTTY || process.env.QUAKE_SERVER_CONSOLE === '1')) {
-  createInterface({ input: process.stdin }).on('line', command => multiplayer.command(command));
+  createInterface({ input: process.stdin }).on('line', command => {
+    const scoped = command.match(/^(coop|deathmatch):\s*(.*)$/);
+    multiplayer.command(scoped ? scoped[2] : command, scoped?.[1]);
+  });
 }
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8', '.pak': 'application/octet-stream', '.ico': 'image/x-icon' };
 const assets = {
@@ -39,15 +42,17 @@ const server = createServer(async (req, res) => {
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405).end(); return; }
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/healthz') {
-      const healthy = Boolean(multiplayer?.status().serverActive);
+      const healthy = Boolean(multiplayer?.healthy());
       res.setHeader('Content-Type', 'application/json');
       res.writeHead(healthy ? 200 : 503).end(JSON.stringify({ ready: healthy }));
       return;
     }
     if (['/api/multiplayer', '/api/multiplayer/status', '/api/multiplayer/world'].includes(url.pathname)) {
       if (url.pathname !== '/api/multiplayer' && !options.diagnostics) { res.writeHead(404).end(); return; }
+      const mode = url.searchParams.get('mode') || undefined;
+      if (mode && !['coop', 'deathmatch'].includes(mode)) { res.writeHead(400).end('Unknown multiplayer mode'); return; }
       const response = multiplayer
-        ? (url.pathname.endsWith('/status') ? multiplayer.status() : url.pathname.endsWith('/world') ? multiplayer.world() : multiplayer.config())
+        ? (url.pathname.endsWith('/status') ? multiplayer.status(mode) : url.pathname.endsWith('/world') ? multiplayer.world(mode) : multiplayer.config(mode))
         : { available: false, error: multiplayerError };
       res.setHeader('Content-Type', 'application/json');
       res.writeHead(200).end(JSON.stringify(response));

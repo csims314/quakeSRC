@@ -6,6 +6,7 @@ import { isIP } from 'node:net';
 import selfsigned from 'selfsigned';
 import { Http3Server, quicheLoaded } from '@fails-components/webtransport';
 import { createQuakeTransport } from './dist/network.js';
+import { multiplayerRules, roomStartup } from './rooms.mjs';
 
 const MAX_PLAYERS = 8;
 
@@ -19,7 +20,7 @@ async function certificate(project, options) {
     if (!matches) throw new Error('TLS certificate does not cover the public WebTransport hostname');
     return { cert, privateKey };
   }
-  const directory = path.join(project, 'web', '.local');
+  const directory = options.certificateDirectory || path.join(project, 'web', '.local');
   await mkdir(directory, { recursive: true });
   try {
     const cert = await readFile(path.join(directory, 'cert.pem'), 'utf8');
@@ -50,20 +51,18 @@ async function certificate(project, options) {
   return { cert: generated.cert, privateKey: generated.private, hash: new X509Certificate(generated.cert).fingerprint256.replaceAll(':', '').toLowerCase() };
 }
 
-export async function startMultiplayer(project, options) {
-  await quicheLoaded;
-  let cert = await certificate(project, options);
+async function startRoom(project, definition, options) {
   const require = createRequire(import.meta.url);
   const createEngine = require('./dist/engine/quakespasm.cjs');
   const logs = [];
   const sessions = new Set();
-  const network = createQuakeTransport(event => console.log(`WebTransport ${event.id}: ${event.state}${event.reason ? ` (${event.reason})` : ''}`));
+  const network = createQuakeTransport(event => console.log(`WebTransport ${definition.id}/${event.id}: ${event.state}${event.reason ? ` (${event.reason})` : ''}`));
   const engine = await createEngine({
     noInitialRun: true, quakeTransport: network,
     locateFile: name => path.join(project, 'web', 'dist', 'engine', name),
-    print: line => { logs.push(line); if (logs.length > 100) logs.shift(); console.log(`[Quake server] ${line}`); },
-    printErr: line => console.error(`[Quake server] ${line}`),
-    onAbort: reason => console.error(`Quake server aborted: ${reason}`),
+    print: line => { logs.push(line); if (logs.length > 100) logs.shift(); console.log(`[Quake ${definition.id}] ${line}`); },
+    printErr: line => console.error(`[Quake ${definition.id}] ${line}`),
+    onAbort: reason => console.error(`Quake ${definition.id} aborted: ${reason}`),
   });
   engine.FS.mkdirTree('/quake/id1');
   engine.FS.mkdirTree('/user/id1');
@@ -72,29 +71,45 @@ export async function startMultiplayer(project, options) {
     catch (error) { if (name === 'pak0.pak' || error.code !== 'ENOENT') throw error; }
   }
   engine.FS.writeFile('/quake/quakespasm.pak', await readFile(path.join(project, 'runtime', 'quakespasm.pak')));
-  const mode = process.env.QUAKE_MULTIPLAYER_MODE || 'coop';
-  if (!['coop', 'deathmatch'].includes(mode)) throw new Error('QUAKE_MULTIPLAYER_MODE must be coop or deathmatch');
-  const map = process.env.QUAKE_MULTIPLAYER_MAP || 'e1m1';
-  if (!/^[a-zA-Z0-9_]+$/.test(map)) throw new Error('Invalid multiplayer map name');
-  const difficulty = process.env.QUAKE_MULTIPLAYER_SKILL || '1';
-  if (!/^[0-3]$/.test(difficulty)) throw new Error('QUAKE_MULTIPLAYER_SKILL must be 0, 1, 2, or 3');
+  for (const file of options.editorFiles || []) {
+    if (!/^maps\/[a-zA-Z0-9_]+\.(bsp|lit)$/.test(file.name)) throw new Error('Invalid editor map artifact');
+    engine.FS.mkdirTree('/user/id1/maps');
+    engine.FS.writeFile(`/user/id1/${file.name}`, new Uint8Array(file.bytes));
+  }
   // Shareware Quake leaves the cmdline cvar empty, so +commands are ignored.
   // A server-owned startup config works for both shareware and registered data.
-  engine.FS.writeFile('/user/id1/autoexec.cfg', `hostname "Quake WebTransport"\ncoop ${mode === 'coop' ? 1 : 0}\ndeathmatch ${mode === 'deathmatch' ? 1 : 0}\nnomonsters ${mode === 'coop' ? 0 : 1}\nskill ${difficulty}\nmap ${map}\n`);
+  engine.FS.writeFile('/user/id1/autoexec.cfg', roomStartup(definition));
   engine.callMain(['-dedicated', String(MAX_PLAYERS), '-basedir', '/quake', '-userdir', '/user', '-heapsize', '196608']);
+  return { ...definition, engine, network, logs, sessions,
+    state: () => JSON.parse(engine.ccall('Web_State', 'string', [], [])),
+    world: () => JSON.parse(engine.ccall('Web_WorldState', 'string', [], [])),
+    command: text => engine.ccall('Web_Command', null, ['string'], [text]),
+  };
+}
+
+export async function startMultiplayer(project, options) {
+  await quicheLoaded;
+  const rules = options.roomDefinitions || multiplayerRules();
+  let cert = await certificate(project, options);
+  // Each factory call owns its own C globals, WASM memory, filesystem and
+  // transport. Selecting a mode never changes the other room's game rules.
+  const rooms = new Map();
+  for (const definition of rules.rooms) rooms.set(definition.id, await startRoom(project, definition, options));
+  const paths = new Map([...rooms.values()].map(room => [room.path, room]));
 
   const port = options.multiplayerPort;
   const server = new Http3Server({ host: options.multiplayerHost, port, cert: cert.cert, privKey: cert.privateKey, secret: randomBytes(32).toString('hex') });
-  const reader = server.sessionStream('/quake').getReader();
   const origins = options.origins;
   // Reject arbitrary websites before they acquire a game connection.
   server.setRequestCallback(async ({ header }) => ({
-    status: header[':path'] === '/quake' && origins.has(header.origin) ? 200 : 403,
-    path: '/quake',
+    status: paths.has(header[':path']) && origins.has(header.origin) ? 200 : 403,
+    path: paths.has(header[':path']) ? header[':path'] : '/quake',
   }));
+  const readers = [...rooms.values()].map(room => ({ room, reader: server.sessionStream(room.path).getReader() }));
   server.startServer();
   await Promise.race([server.ready, new Promise((_, reject) => setTimeout(() => reject(new Error('WebTransport server startup timed out')), 15000).unref())]);
-  const accept = async session => {
+  const accept = async (room, session) => {
+    const { sessions, network } = room;
     if (sessions.size >= MAX_PLAYERS) { session.close({ closeCode: 2, reason: 'Server full' }); return; }
     sessions.add(session);
     let id;
@@ -121,14 +136,16 @@ export async function startMultiplayer(project, options) {
       else session.close();
     } finally { clearTimeout(timeout); }
   };
-  (async () => {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      accept(value).catch(error => console.error(error));
-    }
-  })().catch(error => console.error(`WebTransport listener failed: ${error.message}`));
-  console.log(`Quake ${mode} WebTransport: ${options.multiplayerUrl}`);
+  for (const { room, reader } of readers) {
+    (async () => {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        accept(room, value).catch(error => console.error(error));
+      }
+    })().catch(error => console.error(`WebTransport ${room.id} listener failed: ${error.message}`));
+    console.log(`Quake ${room.id} WebTransport: ${new URL(room.path, options.multiplayerUrl)}`);
+  }
   const renewal = setInterval(async () => {
     try {
       const next = await certificate(project, options);
@@ -136,16 +153,29 @@ export async function startMultiplayer(project, options) {
     } catch (error) { console.error(`Local certificate renewal failed: ${error.message}`); }
   }, options.tlsCert ? 60000 : 6 * 3600000);
   renewal.unref();
-  return {
-    config: () => {
-      const state = JSON.parse(engine.ccall('Web_State', 'string', [], []));
-      return { available: true, transport: 'webtransport', url: options.multiplayerUrl, certificateHash: cert.hash,
+  const roomConfig = room => {
+      const state = room.state();
+      return { id: room.id, label: room.label, available: Boolean(state.serverActive), transport: 'webtransport',
+        url: new URL(room.path, options.multiplayerUrl).href, certificateHash: cert.hash,
         mode: state.coop && !state.deathmatch ? 'coop' : 'deathmatch', monsters: !state.deathmatch && !state.nomonsters,
-        skill: state.skill, map: state.map, maxPlayers: MAX_PLAYERS };
+        skill: state.skill, map: state.map, maxPlayers: MAX_PLAYERS, players: state.players.length,
+        fragLimit: state.fragLimit, timeLimit: state.timeLimit };
+  };
+  const selectedRoom = (mode = rules.defaultMode) => {
+    const room = rooms.get(mode);
+    if (!room) throw new Error('Unknown multiplayer mode');
+    return room;
+  };
+  return {
+    config: mode => ({ ...roomConfig(selectedRoom(mode)), defaultMode: rules.defaultMode, rooms: [...rooms.values()].map(roomConfig) }),
+    healthy: () => [...rooms.values()].every(room => room.state().serverActive),
+    status: mode => { const room = selectedRoom(mode); return { ...room.state(), transport: room.network.snapshot(), logs: room.logs }; },
+    world: mode => selectedRoom(mode).world(),
+    command: (text, mode) => selectedRoom(mode).command(text),
+    stop: () => {
+      clearInterval(renewal);
+      for (const room of rooms.values()) { room.network.closeAll(); for (const session of room.sessions) session.close(); }
+      server.stopServer();
     },
-    status: () => ({ ...JSON.parse(engine.ccall('Web_State', 'string', [], [])), transport: network.snapshot(), logs }),
-    world: () => JSON.parse(engine.ccall('Web_WorldState', 'string', [], [])),
-    command: text => engine.ccall('Web_Command', null, ['string'], [text]),
-    stop: () => { clearInterval(renewal); network.closeAll(); for (const session of sessions) session.close(); server.stopServer(); },
   };
 }

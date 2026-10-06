@@ -17,6 +17,7 @@ const sessions = [`quake-wt-test-a-${process.pid}`, `quake-wt-test-b-${process.p
 let server, serverOutput = '', failure;
 const checks = [];
 let monsterEvidence;
+let statusMode = 'coop';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function waitFor(fn, label, timeout = 20000) {
@@ -53,8 +54,8 @@ function browser(session, args, input = '') {
 async function evaluate(session, code) { return (await browser(session, ['eval', '--stdin'], code)).result; }
 async function command(session, text) { return evaluate(session, `window.quake.command(${JSON.stringify(text)}); true`); }
 async function game(session) { return evaluate(session, '({state:window.quake?.state(),network:window.quake?.network.snapshot(),errors:window.__quakeErrors,log:window.quake?.logs})'); }
-async function status() { return (await fetch(`${url}/api/multiplayer/status`, { signal: AbortSignal.timeout(2000) })).json(); }
-async function world() { return (await fetch(`${url}/api/multiplayer/world`, { signal: AbortSignal.timeout(2000) })).json(); }
+async function status() { return (await fetch(`${url}/api/multiplayer/status?mode=${statusMode}`, { signal: AbortSignal.timeout(2000) })).json(); }
+async function world() { return (await fetch(`${url}/api/multiplayer/world?mode=${statusMode}`, { signal: AbortSignal.timeout(2000) })).json(); }
 async function click(session, name) { await browser(session, ['find', 'role', 'button', 'click', '--name', name]); }
 async function join(session) {
   const label = await evaluate(session, "document.getElementById('join').textContent");
@@ -205,12 +206,15 @@ try {
   for (const session of sessions) assert.ok((await game(session)).state.totalMonsters > 0);
   passed('both players retain their sessions across a level transition to e1m2');
 
-  server.stdin.write('coop 0\ndeathmatch 1\nchangelevel e1m1\n');
-  for (const session of sessions) await joined(session);
+  for (const session of sessions) {
+    await browser(session, ['select', '#mode', 'deathmatch']);
+    await join(session);
+  }
+  statusMode = 'deathmatch';
   const deathmatch = await status();
   assert.equal(deathmatch.deathmatch, 1); assert.equal(deathmatch.coop, 0);
   assert.equal((await world()).alive, 0);
-  passed('deathmatch mode and a second level transition work');
+  passed('both players switch through the selector into the separate deathmatch room');
 
   for (let i = 0; i < 3; i++) {
     await click(sessions[0], 'Leave multiplayer');
@@ -241,6 +245,7 @@ try {
 } catch (error) {
   failure = error;
   console.error(error.stack);
+  await writeFile(path.join(artifactDir, 'webtransport-failure.json'), JSON.stringify({ server: await status().catch(() => null), clients: await Promise.all(sessions.map(session => game(session).catch(() => null))) }, null, 2));
 } finally {
   for (const session of sessions) await browser(session, ['close']).catch(() => {});
   await stopServer();

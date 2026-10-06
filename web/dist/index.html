@@ -4,15 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#11100e">
-  <title>Quake · WebGL Co-op</title>
+  <title>Quake · Multiplayer</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <a class="wordmark" href="/" aria-label="Quake home">QUAKE<span>WEBGL / CO-OP</span></a>
+    <a class="wordmark" href="/" aria-label="Quake home">QUAKE<span>WEBGL / MULTIPLAYER</span></a>
     <div class="toolbar">
       <span id="status" role="status">Ready</span>
       <button id="pause" disabled>Pause</button>
+      <label class="mode-label" for="mode">Mode
+        <select id="mode" aria-describedby="multiplayer-summary">
+          <option value="coop">Co-op</option>
+          <option value="deathmatch">Deathmatch</option>
+        </select>
+      </label>
       <button id="join" disabled>Join co-op</button>
       <button id="leave" hidden>Leave multiplayer</button>
       <button id="fullscreen">Fullscreen</button>
@@ -46,6 +52,7 @@
       <p>The installed data contains the first episode. Select <code>pak0.pak</code> and <code>pak1.pak</code> from your purchased copy before launching to play the full campaign. Files you select stay on your computer.</p>
       <p>The original shareware is available as a <a href="/assets/quake106.zip">complete, unchanged archive</a>. Its <a href="/assets/shareware-license.txt">original license</a> accompanies the game data.</p>
       <p>Click <strong>Join co-op</strong> to fight Quake's original monsters together on the shared server. Up to eight players share the campaign, enemies, and level progress. Other players can open this page and join the same game. Use Quake's console to chat with <code>say hello</code>. Single-player saves remain available after leaving multiplayer.</p>
+      <p>Select <strong>Deathmatch</strong>, then click <strong>Join deathmatch</strong> for player-versus-player combat in a separate eight-player room. There are no monsters. Use the original weapons and pickups, hold <kbd>Tab</kbd> for frag scores, and press fire after dying to respawn. A round ends at 20 frags or 10 minutes; press fire after intermission to start the next round. Switching modes moves only you; co-op continues for its other players.</p>
       <label for="server-url">Multiplayer server (optional)</label>
       <input id="server-url" type="url" placeholder="Use this site's server" aria-describedby="network-status">
       <p id="network-status" role="status" aria-live="polite">Multiplayer uses WebTransport.</p>

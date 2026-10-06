@@ -6,10 +6,26 @@ const logs = [];
 let engine, starting = false, ready = false, pausedByToolbar = false;
 let pendingRestore;
 let syncTimer;
-let joining = false;
+let joining = false, leaving = false;
+let activeMode = null, catalog;
+const requestedMode = new URL(location.href).searchParams.get('mode');
+const explicitMode = ['coop', 'deathmatch'].includes(requestedMode);
+$('mode').value = explicitMode ? requestedMode : 'coop';
+const selectedMode = () => $('mode').value;
+function updateJoinButton() {
+  $('join').disabled = !ready || joining || leaving || activeMode === selectedMode();
+}
+async function waitForGame(predicate) {
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    if (predicate(window.quake.state())) return;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  throw new Error('The game did not finish switching. Please try joining again.');
+}
 function showServerInfo(config) {
   if (!config.available) {
-    $('multiplayer-summary').textContent = 'Local multiplayer server unavailable';
+    $('multiplayer-summary').textContent = 'Multiplayer server unavailable';
     return;
   }
   const coop = config.mode === 'coop';
@@ -18,23 +34,54 @@ function showServerInfo(config) {
   $('multiplayer-summary').textContent = [
     coop ? 'Co-op' : 'Deathmatch',
     config.monsters ? 'Original monsters' : 'No monsters',
-    difficulty,
+    coop ? difficulty : null,
+    !coop && config.fragLimit ? `${config.fragLimit} frag limit` : null,
+    !coop && config.timeLimit ? `${config.timeLimit} minute rounds` : null,
+    config.map,
     `Up to ${config.maxPlayers} players`,
   ].filter(Boolean).join(' · ');
 }
-fetch('/api/multiplayer').then(response => response.json()).then(showServerInfo)
-  .catch(() => { $('multiplayer-summary').textContent = 'Local multiplayer server unavailable'; });
+function showSelectedRoom() {
+  if (!catalog) return;
+  showServerInfo(catalog.rooms?.find(room => room.id === selectedMode()) || catalog);
+  updateJoinButton();
+}
+async function refreshRooms() {
+  const response = await fetch('/api/multiplayer');
+  if (!response.ok) throw new Error('Multiplayer server unavailable');
+  catalog = await response.json();
+  showSelectedRoom();
+}
+refreshRooms().then(() => {
+  if (!explicitMode && catalog.defaultMode) { $('mode').value = catalog.defaultMode; showSelectedRoom(); }
+}).catch(() => { $('multiplayer-summary').textContent = 'Multiplayer server unavailable'; });
+$('mode').addEventListener('change', () => {
+  const url = new URL(location.href);
+  url.searchParams.set('mode', selectedMode());
+  history.replaceState(null, '', url);
+  showSelectedRoom();
+});
+const roomTimer = window.setInterval(() => { if (!document.hidden) refreshRooms().catch(() => {}); }, 15000);
 const transport = createQuakeTransport(event => {
   if (event.state === 'closed' && transport.snapshot().some(connection => connection.open)) return;
   $('network-status').textContent = event.state === 'ready' ? 'WebTransport connected. Joining the game…' : `Disconnected: ${event.reason}`;
   if (event.state === 'closed') {
-    $('join').disabled = !ready || joining;
+    if (!joining) { activeMode = null; $('pause').disabled = !ready; }
+    updateJoinButton();
     $('leave').hidden = true;
   }
 });
 window.__quakeErrors = [];
 window.addEventListener('error', event => window.__quakeErrors.push(event.message));
 window.addEventListener('unhandledrejection', event => window.__quakeErrors.push(String(event.reason)));
+// SDL also requests pointer lock during map changes. Chrome can reject those
+// requests after Esc or without a gesture; keep the explicit Click to play flow.
+const nativePointerLock = canvas.requestPointerLock.bind(canvas);
+canvas.requestPointerLock = (...args) => {
+  const result = nativePointerLock(...args);
+  result?.catch(error => log(`Mouse capture: ${error.message}`));
+  return result;
+};
 
 function log(line) {
   console.log(line);
@@ -49,7 +96,7 @@ function log(line) {
       $('cover').hidden = true;
       $('capture').hidden = Boolean(document.pointerLockElement);
       for (const id of ['pause', 'backup', 'send-command']) $(id).disabled = false;
-      $('join').disabled = false;
+      updateJoinButton();
     }, 0);
   }
 }
@@ -163,7 +210,7 @@ async function start() {
     engine.FS.writeFile('/quake/quakespasm.pak', extras);
     // Use original gameplay; only supply desktop browser-friendly input defaults.
     if (!engine.FS.analyzePath('/user/id1/config.cfg').exists) {
-      engine.FS.writeFile('/user/id1/config.cfg', 'bind w +forward\nbind s +back\nbind a +moveleft\nbind d +moveright\nbind SPACE +jump\nbind MOUSE1 +attack\n+mlook\n');
+      engine.FS.writeFile('/user/id1/config.cfg', 'bind w +forward\nbind s +back\nbind a +moveleft\nbind d +moveright\nbind SPACE +jump\nbind MOUSE1 +attack\nbind TAB +showscores\n+mlook\n');
     }
     if (pendingRestore) { await applyRestore(pendingRestore); pendingRestore = null; }
     $('loading').textContent = 'Starting Quake…';
@@ -189,33 +236,50 @@ async function capture() {
 
 $('start').addEventListener('click', start);
 $('join').addEventListener('click', async () => {
-  if (joining || !ready) return;
+  if (joining || leaving || !ready) return;
   joining = true; $('join').disabled = true;
   $('network-status').textContent = 'Connecting to multiplayer…';
   document.exitPointerLock();
   try {
-    const response = await fetch('/api/multiplayer');
+    const response = await fetch(`/api/multiplayer?mode=${selectedMode()}`);
+    if (!response.ok) throw new Error('The selected multiplayer mode is unavailable.');
     const config = await response.json();
     showServerInfo(config);
     const entered = $('server-url').value.trim();
     if (!entered && !config.available) throw new Error(config.error || 'The local multiplayer server is unavailable.');
-    const target = entered ? { url: entered } : config;
-    if (entered && config.url && new URL(entered).href === new URL(config.url).href) target.certificateHash = config.certificateHash;
-    await connectQuake(transport, target);
+    const matched = entered && [config, ...(config.rooms || [])].find(room => new URL(entered).href === new URL(room.url).href);
+    const target = entered ? { url: entered, certificateHash: matched?.certificateHash } : config;
+    command('disconnect');
+    transport.closeAll();
+    const connectionId = await connectQuake(transport, target);
     command('stopdemo\nconnect webtransport');
+    await waitForGame(state => state.connectionId === connectionId && state.signon === 4 && !state.serverActive);
+    document.exitPointerLock();
     $('leave').hidden = false;
     $('network-status').textContent = `Connected to ${target.url}. Click the game to play.`;
     $('save-status').textContent = entered ? 'MULTIPLAYER' : config.mode === 'coop' ? 'CO-OP / ORIGINAL MONSTERS' : 'DEATHMATCH';
+    activeMode = entered ? 'custom' : config.id || selectedMode();
+    pausedByToolbar = false; $('pause').textContent = 'Pause';
+    $('pause').disabled = !entered && config.mode === 'deathmatch';
   } catch (error) {
     $('network-status').textContent = error.message;
-    log(error.message); $('join').disabled = false;
-  } finally { joining = false; }
+    activeMode = null; command('map start');
+    log(error.message);
+  } finally { joining = false; updateJoinButton(); }
 });
-$('leave').addEventListener('click', () => {
+$('leave').addEventListener('click', async () => {
+  leaving = true;
   command('disconnect\nmap start');
-  $('join').disabled = false; $('leave').hidden = true;
-  $('network-status').textContent = 'Returned to single player.';
+  transport.closeAll();
+  activeMode = null; updateJoinButton(); $('leave').hidden = true; $('pause').disabled = false;
+  $('network-status').textContent = 'Returning to single player…';
   $('save-status').textContent = 'LOCAL SINGLE PLAYER';
+  try {
+    await waitForGame(state => state.serverActive && state.map === 'start' && state.signon === 4);
+    document.exitPointerLock();
+    $('network-status').textContent = 'Returned to single player.';
+  } catch (error) { $('network-status').textContent = error.message; }
+  finally { leaving = false; updateJoinButton(); }
 });
 $('resume').addEventListener('click', capture);
 canvas.addEventListener('click', capture);
@@ -264,4 +328,4 @@ $('backup').addEventListener('click', async () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && ready) { command('web_writeconfig'); sync().catch(log); }
 });
-window.addEventListener('pagehide', () => { if (syncTimer) clearInterval(syncTimer); transport.closeAll(); if (engine) sync().catch(() => {}); });
+window.addEventListener('pagehide', () => { if (syncTimer) clearInterval(syncTimer); clearInterval(roomTimer); transport.closeAll(); if (engine) sync().catch(() => {}); });
