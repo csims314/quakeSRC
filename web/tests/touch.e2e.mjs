@@ -141,6 +141,8 @@ try {
   devtools = await connect((await browser(['get', 'cdp-url'])).cdpUrl);
   const { targetInfos } = await devtools.send('Target.getTargets');
   const page = await attach(targetInfos.find(target => target.type === 'page').targetId);
+  // The browser can hold another tab; a background tab is hidden, never renders and never takes touch input.
+  await page.send('Page.bringToFront');
   // A landscape phone: touch only, no mouse.
   await page.send('Emulation.setDeviceMetricsOverride', { width: 915, height: 412, deviceScaleFactor: 2, mobile: true, screenOrientation: { type: 'landscapePrimary', angle: 90 } });
   await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
