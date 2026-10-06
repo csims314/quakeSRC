@@ -1,6 +1,6 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { X509Certificate, randomBytes } from 'node:crypto';
+import { X509Certificate, createPrivateKey, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { isIP } from 'node:net';
 import selfsigned from 'selfsigned';
@@ -14,6 +14,7 @@ async function certificate(project, options) {
     const [cert, privateKey] = await Promise.all([readFile(options.tlsCert, 'utf8'), readFile(options.tlsKey, 'utf8')]);
     const parsed = new X509Certificate(cert);
     if (Date.parse(parsed.validTo) <= Date.now()) throw new Error('WebTransport TLS certificate has expired');
+    if (!parsed.checkPrivateKey(createPrivateKey(privateKey))) throw new Error('WebTransport TLS private key does not match its certificate');
     const matches = isIP(options.certificateHostname) ? parsed.checkIP(options.certificateHostname) : parsed.checkHost(options.certificateHostname);
     if (!matches) throw new Error('TLS certificate does not cover the public WebTransport hostname');
     return { cert, privateKey };
@@ -27,7 +28,8 @@ async function certificate(project, options) {
     // Pinned WebTransport certificates must be EC and valid for <= 14 days.
     const matches = isIP(options.certificateHostname) ? parsed.checkIP(options.certificateHostname) : parsed.checkHost(options.certificateHostname);
     if (matches && Date.parse(parsed.validTo) > Date.now() + 24 * 3600000 &&
-      Date.parse(parsed.validTo) - Date.parse(parsed.validFrom) <= 14 * 24 * 3600000 && parsed.publicKey.asymmetricKeyType === 'ec') {
+      Date.parse(parsed.validTo) - Date.parse(parsed.validFrom) <= 14 * 24 * 3600000 &&
+      parsed.publicKey.asymmetricKeyType === 'ec' && parsed.checkPrivateKey(createPrivateKey(privateKey))) {
       return { cert, privateKey, hash: parsed.fingerprint256.replaceAll(':', '').toLowerCase() };
     }
   } catch (error) { if (error.code !== 'ENOENT') console.warn(`Refreshing local certificate: ${error.message}`); }

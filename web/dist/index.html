@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#11100e">
-  <title>Quake · Local WebGL</title>
+  <title>Quake · WebGL Co-op</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <a class="wordmark" href="/" aria-label="Quake home">QUAKE<span>LOCAL / WEBGL</span></a>
+    <a class="wordmark" href="/" aria-label="Quake home">QUAKE<span>WEBGL / CO-OP</span></a>
     <div class="toolbar">
       <span id="status" role="status">Ready</span>
       <button id="pause" disabled>Pause</button>
@@ -44,9 +44,9 @@
     <section id="details" hidden>
       <p>Start a game with <strong>Esc → Single Player → New Game</strong>. Use the in-game menus to change controls, difficulty, video, sound, and saves. Mouse capture and audio require a click.</p>
       <p>The installed data contains the first episode. Select <code>pak0.pak</code> and <code>pak1.pak</code> from your purchased copy before launching to play the full campaign. Files you select stay on your computer.</p>
-      <p>Click <strong>Join co-op</strong> to fight Quake's original monsters together on the local server. Up to eight players share the campaign, enemies, and level progress. Open this page in another browser or tab to join the same game. Use Quake's console to chat with <code>say hello</code>. Single-player saves remain available after leaving multiplayer.</p>
+      <p>Click <strong>Join co-op</strong> to fight Quake's original monsters together on the shared server. Up to eight players share the campaign, enemies, and level progress. Other players can open this page and join the same game. Use Quake's console to chat with <code>say hello</code>. Single-player saves remain available after leaving multiplayer.</p>
       <label for="server-url">Multiplayer server (optional)</label>
-      <input id="server-url" type="url" placeholder="Use the local server" aria-describedby="network-status">
+      <input id="server-url" type="url" placeholder="Use this site's server" aria-describedby="network-status">
       <p id="network-status" role="status" aria-live="polite">Multiplayer uses WebTransport.</p>
       <p>This build runs QuakeSpasm through WebAssembly and <a href="https://github.com/ptitSeb/gl4es">GL4ES</a>. The installed shareware data has no CD soundtrack.</p>
       <form id="command-form"><label for="command">Engine console command</label><div><input id="command" placeholder="e.g. map e1m1" autocomplete="off"><button id="send-command" disabled>Run</button></div></form>

@@ -4,6 +4,9 @@ runtime/id1/music/
 runtime/id1/*.cfg
 runtime/id1/*.sav
 runtime/id1/*.dem
+runtime/*.exe
+runtime/*.dll
+runtime/history.txt
 runtime/qconsole.log
 runtime/*.log
 runtime/*.png

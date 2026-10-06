@@ -10,7 +10,7 @@ RUN git clone https://github.com/ptitSeb/gl4es.git tools/gl4es && \
     git -C tools/gl4es checkout ec16bedd8819c475326f4f1a3063772c6d986e06 && \
     bash tools/build-web.sh
 
-FROM node:24-bookworm-slim
+FROM node:24.21.0-trixie-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libatomic1
 COPY package.json package-lock.json ./
