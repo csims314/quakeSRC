@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Quake",
+  "short_name": "Quake",
+  "description": "Original Quake, co-op and deathmatch in your browser.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#11100e",
+  "theme_color": "#11100e",
+  "icons": [
+    { "src": "/icons/quake-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/quake-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

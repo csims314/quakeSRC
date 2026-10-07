@@ -1,17 +1,19 @@
 # QuakeSpasm in the browser
 
-Double-click `launch-web.cmd` in the project root. It starts a server on `http://127.0.0.1:3000` and opens your default browser. Click **Launch Quake**, then **Click to play** to capture your mouse. The original Quake menus, console, gameplay, and data files run inside the engine.
+Double-click `launch-web.cmd` in the project root. It starts a server on `http://127.0.0.1:3000` and opens your default browser. Click **Launch Quake**, then **Click to play** to capture your mouse on desktop. The original console, gameplay, and data files run inside the engine. The web client uses one responsive browser menu in place of the desktop menus.
 
 ## Controls and saves
 
 - WASD: movement; mouse: look; left click: fire; Space: jump.
 - Escape: release the browser's mouse capture and open the game menu. Click the game to capture again.
-- Fullscreen: use the toolbar button. Phones without the browser Fullscreen API
-  get an in-page view that fills the screen; **Exit fullscreen** returns to the
-  toolbar. Escape can also exit native browser fullscreen.
-- Phones and tablets: **Touch controls** turn on by themselves on touch-only devices, or when a finger touches the game; the toolbar button switches them on or off. Drag on the left half to move (push further to run), drag on the right half or on **Fire** to look, and use **Fire**, **Jump**, **Weapon** and **Scores**. **Menu** opens the game menus, which then show arrow, **OK** and **Back** buttons. Options → Mouse Speed also sets how fast touch turns the view. Turn the device sideways for the most room.
-- Save and load through Quake's original Single Player menu or console commands such as `save slot1` / `load slot1`.
+- Fullscreen: use the toolbar button. Without the native Fullscreen API, **Expand game** fills the available browser view; **Exit view** returns to the toolbar. iPhone browser tabs retain their address bar. For play without it, open **Install**, then use Safari → Share → Add to Home Screen, keeping **Open as Web App** enabled. Launch the new icon. The manifest uses standalone mode; launches fetch the current deployment rather than caching game assets.
+- Phones and tablets: touch controls turn on automatically. Drag on the left to move (push further to run), drag on the right or **Fire** to look, and use **Fire**, **Jump**, **Weapon** and **Scores**. **Menu** opens large, scrollable browser pages. **Settings** changes touch sensitivity, invert look, HUD size, sound, picture and character; it also switches touch controls on or off. The renderer resizes for portrait, landscape, and expanded views.
+- Use **Menu → New game**, **Save & load**, **Multiplayer**, **Settings**, or **Controls & console**. Local single player pauses while this menu is open; multiplayer continues. These buttons use Quake's original engine commands, including save/load. Console commands such as `save slot1` / `load slot1` remain available. Editor/headless contexts without the web menu callback retain their existing menus.
 - Saves and configuration are stored in IndexedDB for this browser and origin. Browser storage can be cleared; use **Export saves** to keep a portable backup. **Import saves** accepts the exported JSON or an individual `.sav` file.
+
+The Home Screen app may use separate browser storage. Export saves before moving
+to it and import the backup there if needed. Quake PAKs selected from your device
+must also be selected again on a new launch.
 
 Mobile play does not require the mouse Pointer Lock API. Multiplayer prefers
 WebTransport and automatically uses a WebSocket connection when that API is
@@ -35,10 +37,10 @@ Stock QuakeSpasm's shareware restrictions also apply in the browser.
 
 Music is not bundled; the shareware data has none. Name tracks after the original CD tracks, `track02` through `track11`, in any format the browser plays: OGG, Opus, MP3, FLAC, WAV or M4A. Files named like `02 - Title.mp3` are also matched to their track number.
 
-- **Your own files:** choose them under **Add your soundtrack** before launching, or **Controls & details → Add music** at any time. They are kept in this browser's IndexedDB, never uploaded, and used before any music on the server. **Remove your music** deletes them.
+- **Your own files:** choose them under **Full game files & soundtrack** before launching, or **Menu → Settings → Soundtrack → Add music** at any time. They are kept in this browser's IndexedDB, never uploaded, and used before any music on the server. **Remove your music** deletes them.
 - **Server music:** files in `runtime/id1/music/` (the folder the native game uses) are offered to every player through `/api/music` and streamed from `/assets/music/`. Only put music there that you may share with your players.
 
-The engine still picks each level's track, pauses it with the game, and applies Options → Music Volume (`bgmvolume`), `bgm_extmusic` and the `music`, `music_stop`, `music_pause`, `music_resume` and `music_loop` commands. The browser streams the file with its own audio player instead of decoding it in WebAssembly memory. A track the browser cannot offer falls back to the engine's own OGG and WAV decoders when the file is inside the game's filesystem.
+The engine still picks each level's track, pauses it with the game, and applies Menu → Settings → Music volume (`bgmvolume`), `bgm_extmusic` and the `music`, `music_stop`, `music_pause`, `music_resume` and `music_loop` commands. The browser streams the file with its own audio player instead of decoding it in WebAssembly memory. A track the browser cannot offer falls back to the engine's own OGG and WAV decoders when the file is inside the game's filesystem.
 
 ## Who's playing
 
@@ -46,9 +48,9 @@ The engine still picks each level's track, pauses it with the game, and applies 
 
 ## WebTransport multiplayer
 
-Click **Launch Quake**, press **Esc** to release the mouse, then click **Join co-op**. The launcher starts an eight-player co-op server on `e1m1`, with the original monsters enabled at Normal difficulty. Players fight the same server-controlled enemies and share level progress and the monster kill count. Quake's original monster AI, attacks, damage, drops, and respawning players run in the authoritative engine. Open the same address in another tab or browser and join to play together. **Leave multiplayer** returns to the single-player start map. Use the original console for commands such as `name Ranger`, `say hello`, and `color 4 4`.
+Click **Launch Quake**, open **Menu → Multiplayer**, then click **Join co-op**. The launcher starts an eight-player co-op server on `e1m1`, with the original monsters enabled at Normal difficulty. Players fight the same server-controlled enemies and share level progress and the monster kill count. Quake's original monster AI, attacks, damage, drops, and respawning players run in the authoritative engine. Open the same address in another tab or browser and join to play together. **Menu → Multiplayer → Leave multiplayer** returns to the single-player start map. Use the original console for commands such as `name Ranger`, `say hello`, and `color 4 4`.
 
-Choose **Deathmatch** in the toolbar and click **Join deathmatch** for original free-for-all PvP. Its separate eight-player room starts on `e1m1` with no monsters, a 20-frag limit, and a 10-minute time limit. Original weapon and item respawns, damage, death, scoring and player respawns run in the authoritative engine. Hold **Tab** for the scoreboard. Press fire after dying to respawn, and after the intermission to start the next round. Scores reset and the same arena reloads while players keep their connections. Deathmatch cannot be paused. Changing the selector and joining moves only you; the other room keeps running.
+Choose **Deathmatch** in Menu → Multiplayer and click **Join deathmatch** for original free-for-all PvP. Its separate eight-player room starts on `e1m1` with no monsters, a 20-frag limit, and a 10-minute time limit. Original weapon and item respawns, damage, death, scoring and player respawns run in the authoritative engine. Hold **Tab** for the scoreboard. Press fire after dying to respawn, and after the intermission to start the next round. Scores reset and the same arena reloads while players keep their connections. Deathmatch cannot be paused. Changing the selector and joining moves only you; the other room keeps running.
 
 Set `QUAKE_MULTIPLAYER_SKILL` before starting the server to choose `0` (Easy), `1` (Normal, default), `2` (Hard), or `3` (Nightmare). Co-op explicitly sets `coop 1`, `deathmatch 0`, and `nomonsters 0` before loading its map. In a running server terminal, change difficulty and reload a level with `coop: skill 2` followed by `coop: changelevel e1m1`.
 

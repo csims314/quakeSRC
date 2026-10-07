@@ -42,9 +42,13 @@ export function createHud(photo, loadArt) {
         for (let dy = -width + 1; dy < width; dy++) for (let dx = -width + 1; dx < width; dx++) blend(x + dx, y + dy, colour, alpha);
       }
     };
-    const drip = (x, y, length, seed) => {
-      blot(x, y, 2.2, [120, 8, 6], 0.85, seed);
-      for (let k = 0; k < length; k++) blot(x + Math.sin(k * 0.7 + seed) * 0.6, y + k, 1.1 - k / (length * 2.2), [105, 6, 5], 0.8, seed + k);
+    const drip = (x, y, length, seed, width = 3.5) => {
+      blot(x, y, width * 2, [171, 12, 9], 0.98, seed);
+      for (let k = 0; k < length; k++) {
+        const dx = x + Math.sin(k * 0.22 + seed) * 1.1, r = width * (1 - k / (length * 1.8));
+        blot(dx, y + k, r, [151, 7, 6], 0.96, seed + k);
+        blend(dx - r * 0.4, y + k, [231, 39, 22], 0.65);
+      }
     };
     return { rgba, blend, each, blot, line, drip };
   }
@@ -83,26 +87,43 @@ export function createHud(photo, loadArt) {
 
   function damage(face, level) {
     const [left, right] = EYES;
-    if (level >= 1) face.drip(left[0] + 6, left[1] - 18, 6, 11);
+    // Paint broad, opaque wounds before reduction. A thin 96px scratch turns
+    // into a barely tinted texel at the actual 24px HUD size. Keep fresh reds
+    // over the pallor, with dark cuts and larger purple swelling for contrast.
+    if (level >= 4) {
+      face.each((x, y, i) => {
+        const grey = 0.3 * face.rgba[i] + 0.59 * face.rgba[i + 1] + 0.11 * face.rgba[i + 2];
+        for (let c = 0; c < 3; c++) face.rgba[i + c] = clamp((face.rgba[i + c] * 0.65 + grey * 0.35) * 0.8);
+      });
+    }
+    if (level >= 1) {
+      face.blot(left[0] + 3, left[1] - 13, 9, [172, 15, 11], 0.95, 10);
+      face.line(left[0] - 4, left[1] - 13, left[0] + 11, left[1] - 16, [62, 4, 6], 0.95, 2);
+      face.drip(left[0] + 6, left[1] - 12, 18, 11, 3.8);
+      face.blot(right[0] + 3, right[1] + 7, 8, [101, 44, 79], 0.7, 4);
+    }
     if (level >= 2) {
-      face.blot(right[0] + 2, right[1] + 5, 5, [92, 52, 88], 0.45, 4);
-      face.drip(NOSE[0] - 1, NOSE[1] + 3, 7, 12);
-      face.line(MOUTH[1][0] + 9, NOSE[1] - 4, MOUTH[1][0] + 14, NOSE[1] + 3, [140, 14, 10], 0.8);
+      face.blot(right[0] + 1, right[1] + 3, 12, [63, 29, 67], 0.82, 4);
+      face.blot(right[0] + 3, right[1] + 8, 8, [117, 35, 51], 0.78, 5);
+      face.drip(NOSE[0] - 2, NOSE[1] + 1, 19, 12, 4);
+      face.blot(MOUTH[1][0] + 7, NOSE[1] + 5, 8, [181, 16, 10], 0.95, 16);
+      face.line(MOUTH[1][0] + 2, NOSE[1], MOUTH[1][0] + 12, NOSE[1] + 8, [60, 4, 6], 0.98, 2);
     }
     if (level >= 3) {
       crack(face, 1, 5);
-      face.drip(right[0] + 10, right[1] - 16, 12, 13);
-      face.blot(MOUTH[0][0] + 4, MOUTH[0][1] + 2, 4, [110, 8, 6], 0.7, 6);
-      face.blot(left[0] - 3, left[1] + 6, 4.5, [96, 50, 90], 0.4, 7);
+      face.drip(right[0] + 8, right[1] - 15, 33, 13, 5);
+      face.blot(MOUTH[0][0] + 4, MOUTH[0][1] + 2, 9, [158, 9, 7], 0.95, 6);
+      face.blot(left[0] - 3, left[1] + 5, 13, [62, 30, 72], 0.8, 7);
+      face.line(MOUTH[0][0] - 3, MOUTH[0][1], MOUTH[0][0] + 8, MOUTH[0][1] + 2, [63, 3, 5], 0.98, 2);
+      face.drip(MOUTH[0][0] + 3, MOUTH[0][1] + 3, 17, 18, 3.5);
     }
     if (level >= 4) {
       crack(face, 0, 8);
-      face.drip(left[0] - 8, left[1] - 14, 16, 14);
-      face.drip(MOUTH[1][0] - 2, MOUTH[1][1] + 2, 12, 15);
-      face.each((x, y, i) => {
-        const grey = 0.3 * face.rgba[i] + 0.59 * face.rgba[i + 1] + 0.11 * face.rgba[i + 2];
-        for (let c = 0; c < 3; c++) face.rgba[i + c] = clamp((face.rgba[i + c] * 0.7 + grey * 0.3) * 0.85);
-      });
+      face.drip(left[0] - 7, left[1] - 14, 38, 14, 5.5);
+      face.blot(NOSE[0] + 2, NOSE[1] - 2, 9, [168, 10, 8], 0.94, 20);
+      face.blot(MOUTH[1][0] - 3, MOUTH[1][1] + 2, 12, [148, 6, 6], 0.98, 15);
+      face.drip(MOUTH[1][0] - 2, MOUTH[1][1] + 2, 21, 15, 5);
+      face.line(left[0] - 8, left[1] + 14, NOSE[0] - 4, NOSE[1] + 10, [70, 3, 5], 0.98, 2);
     }
   }
 
@@ -125,9 +146,9 @@ export function createHud(photo, loadArt) {
     for (let level = 0; level < 5; level++) {
       make(`face${level + 1}`, face => damage(face, level));
       make(`face_p${level + 1}`, face => {
-        damage(face, level);
         closeEyes(face);
         tint(face, [200, 20, 10], 0.12);
+        damage(face, Math.max(1, level));
       });
     }
     make('face_quad', face => { tint(face, [40, 90, 255], 0.28); glowEyes(face, [120, 170, 255]); });

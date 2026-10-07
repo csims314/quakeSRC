@@ -18,7 +18,7 @@ const cli = process.env.AGENT_BROWSER_BIN || (process.platform === 'win32' && ex
 const artifactDir = path.join(project, 'web/test-artifacts');
 const session = `quake-touch-test-${process.pid}`;
 const checks = [];
-let server, serverOutput = '', failure, devtools, musicDir;
+let server, serverOutput = '', failure, devtools, musicDir, activePage;
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function waitFor(fn, label, timeout = 30000) {
@@ -87,10 +87,29 @@ async function box(page, selector) {
   return page.evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, width: r.width, height: r.height }; })()`);
 }
 async function tap(page, selector, hold = 80) {
+  await page.evaluate('document.querySelector(' + JSON.stringify(selector) + ').scrollIntoView({block:"nearest",inline:"nearest"})');
   const { x, y } = await box(page, selector);
   await touch(page, 'touchStart', [[x, y]]);
   await delay(hold);
   await touch(page, 'touchEnd', []);
+}
+async function openMenu(page, name = 'main') {
+  if (!await page.evaluate("document.getElementById('game-menu').open")) {
+    await tap(page, await page.evaluate("document.getElementById('stage').classList.contains('expanded')") ? '.touch-top [data-key=escape]' : '#menu-toggle');
+  }
+  await waitFor(() => page.evaluate("document.getElementById('game-menu').open"), 'browser game menu');
+  if (name !== 'main') {
+    if (!await page.evaluate("document.getElementById('menu-back').hidden")) await tap(page, '#menu-back');
+    await tap(page, '[data-page="' + name + '"]');
+  }
+}
+async function launchVisible(page) {
+  return page.evaluate(`(() => {
+    const button = document.getElementById('start'), r = button.getBoundingClientRect();
+    return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth
+      && document.documentElement.scrollWidth <= innerWidth
+      && button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+  })()`);
 }
 async function drag(page, from, to, hold = 0, steps = 8) {
   await touch(page, 'touchStart', [from]);
@@ -149,6 +168,7 @@ try {
   devtools = await connect((await browser(['get', 'cdp-url'])).cdpUrl);
   const { targetInfos } = await devtools.send('Target.getTargets');
   const page = await attach(targetInfos.find(target => target.type === 'page').targetId);
+  activePage = page;
   // The browser can hold another tab; a background tab is hidden, never renders and never takes touch input.
   await page.send('Page.bringToFront');
   await page.send('Page.enable');
@@ -161,6 +181,23 @@ try {
   await waitFor(() => page.evaluate("document.readyState === 'complete' && (window.__quakeErrors?.length || document.getElementById('music-status').textContent !== 'checking…')"), 'page load');
   assert.equal(await page.evaluate("typeof document.exitPointerLock"), 'undefined');
   assert.deepEqual(await page.evaluate('window.__quakeErrors'), [], 'mobile startup must not require mouse capture or native fullscreen');
+  await waitFor(() => page.evaluate("document.querySelectorAll('#character-cards input').length === 3"), 'all character choices');
+  for (const [width, height] of [[320,568],[390,844],[844,390],[915,412]]) {
+    await page.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 2, mobile: true, screenOrientation: { type: width > height ? 'landscapePrimary' : 'portraitPrimary', angle: width > height ? 90 : 0 } });
+    await page.evaluate('window.scrollTo(0,0)');
+    await waitFor(() => launchVisible(page), 'Launch visible at ' + width + 'x' + height);
+    await screenshot(page, 'launcher-' + width + 'x' + height + '.png');
+  }
+  passed('Launch stays visible without scrolling at four portrait and landscape phone sizes');
+  const manifest = await page.evaluate("fetch('/manifest.json').then(r=>r.json())");
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(await page.evaluate("document.querySelector('meta[name=apple-mobile-web-app-capable]').content"), 'yes');
+  await tap(page, '#install');
+  await waitFor(() => page.evaluate("document.getElementById('install-dialog').open"), 'installation instructions');
+  assert.match(await page.evaluate("document.getElementById('install-dialog').textContent"), /address bar/);
+  await tap(page, '#install-close');
+  await waitFor(() => page.evaluate("!document.getElementById('install-dialog').open"), 'installation instructions close', 3000);
+  passed('Home Screen launch metadata and honest address-bar instructions are available');
 
   const tracks = await page.evaluate("[...document.querySelectorAll('#music-status')].map(e => e.textContent)[0]");
   musicDir = await mkdtemp(path.join(tmpdir(), 'quake-touch-music-'));
@@ -243,19 +280,41 @@ try {
   passed('Fire button fires the current weapon');
 
   await tap(page, '.touch-top [data-key=escape]');
-  await waitFor(async () => (await game(page)).keyDest === 'menu' && await page.evaluate("document.querySelector('.touch').dataset.mode === 'menu'"), 'Menu opens the game menu');
-  assert.ok(await page.evaluate("getComputedStyle(document.querySelector('.touch-menu')).display !== 'none' && getComputedStyle(document.querySelector('.touch-actions')).display === 'none'"));
+  await waitFor(async () => (await game(page)).keyDest === 'menu' && await page.evaluate("document.getElementById('game-menu').open"), 'Menu opens the browser game menu');
+  assert.equal(await page.evaluate("document.querySelector('.touch').hidden"), true, 'gameplay gestures do not cover menu buttons');
+  const pausedTime = (await game(page)).serverTime;
+  await delay(350);
+  assert.equal((await game(page)).serverTime, pausedTime, 'the original engine pauses local single player for the browser menu');
   await screenshot(page, 'touch-menu.png');
-  await tap(page, '.touch-menu [data-key=down]');
-  await tap(page, '.touch-menu [data-key=escape]');
+  await tap(page, '[data-page=settings]');
+  await waitFor(() => page.evaluate("!document.querySelector('[data-menu-panel=settings]').hidden"), 'settings page');
+  await page.evaluate("document.getElementById('sensitivity').value=5; document.getElementById('sensitivity').dispatchEvent(new Event('input',{bubbles:true})); true");
+  await waitFor(async () => (await game(page)).sensitivity === 5, 'settings change the actual engine sensitivity');
+  await tap(page, '#menu-back');
+  await tap(page, '[data-page=singleplayer]');
+  await page.evaluate("document.getElementById('difficulty').value='2'; document.getElementById('newgame-map').value='e1m1'; true");
+  await tap(page, '#newgame');
+  await waitFor(async () => { const s=await game(page); return s.map==='e1m1' && s.signon===4 && s.skill===2; }, 'new game starts the selected map and difficulty');
+  await openMenu(page, 'saves');
+  const saved = await game(page);
+  await tap(page, '[data-save=s0]');
+  await waitFor(() => page.evaluate("document.getElementById('save-result').textContent === 'Slot 1 saved.' && window.quake.fs.analyzePath('/user/id1/s0.sav').exists"), 'original save command writes and syncs slot 1');
+  await tap(page, '#menu-resume');
+  await waitFor(async () => (await game(page)).keyDest === 'game', 'return to game');
+  await page.evaluate("window.quake.command('map start'); true");
+  await waitFor(async () => (await game(page)).map === 'start' && (await game(page)).signon === 4, 'another map before loading');
+  await openMenu(page, 'saves');
+  await tap(page, '[data-load=s0]');
+  await waitFor(async () => { const s=await game(page); return s.map==='e1m1' && s.signon===4 && s.skill===2 && distance(s.origin,saved.origin)<8; }, 'loading restores the saved map, difficulty and position');
   await waitFor(async () => (await game(page)).keyDest === 'game' && await page.evaluate("document.querySelector('.touch').dataset.mode === 'game'"), 'Back closes the menu');
-  passed('Menu button and arrow pad drive the original menus');
+  passed('touch menu pauses local play and operates real settings, new-game, save and load commands');
   await screenshot(page, 'touch-controls.png');
   await tap(page, '#view-exit');
   assert.equal(await page.evaluate("document.getElementById('stage').classList.contains('expanded')"), false);
 
   await page.evaluate("window.quake.command('name Thumbs'); true");
   await page.evaluate("window.scrollTo(0, 0)");
+  await openMenu(page, 'multiplayer');
   await tap(page, '#join');
   await waitFor(async () => { const state = await game(page); return state?.signon === 4 && !state.serverActive && state.map === 'maps/e1m1.bsp'; }, 'joining co-op by touch');
   const status = await waitFor(async () => {
@@ -279,6 +338,7 @@ try {
   assert.deepEqual(await page.evaluate('window.__quakeErrors'), []);
   const { targetId: olderPhoneId } = await devtools.send('Target.createTarget', { url: 'about:blank' });
   const olderPhone = await attach(olderPhoneId);
+  activePage = olderPhone;
   await olderPhone.send('Page.enable');
   await olderPhone.send('Page.bringToFront');
   await olderPhone.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true, screenOrientation: { type: 'portraitPrimary', angle: 0 } });
@@ -286,7 +346,8 @@ try {
   await olderPhone.send('Page.addScriptToEvaluateOnNewDocument', { source: `${mobileAPIs}\nObject.defineProperty(window, 'WebTransport', { configurable: true, value: undefined });` });
   await olderPhone.send('Page.navigate', { url });
   await waitFor(() => olderPhone.evaluate("document.readyState === 'complete' && document.getElementById('music-status').textContent !== 'checking…'"), 'older phone launcher');
-  await olderPhone.evaluate("document.getElementById('start').scrollIntoView({block:'center'})");
+  await waitFor(() => launchVisible(olderPhone), 'portrait Launch visible without scrolling');
+  await screenshot(olderPhone, 'portrait-launcher.png');
   await tap(olderPhone, '#start');
   await waitFor(async () => (await game(olderPhone))?.signon === 4, 'single player without WebTransport', 60000);
   assert.equal(await olderPhone.evaluate("document.getElementById('join').disabled"), false);
@@ -295,8 +356,30 @@ try {
   await waitFor(() => olderPhone.evaluate("document.getElementById('stage').classList.contains('expanded')"), 'portrait fullscreen fallback');
   await screenshot(olderPhone, 'touch-portrait.png');
   assert.equal(await olderPhone.evaluate("Math.round(document.getElementById('stage').getBoundingClientRect().height)"), 844);
+  const portraitCanvas = await olderPhone.evaluate("({width:document.getElementById('canvas').width,height:document.getElementById('canvas').height})");
+  assert.ok(portraitCanvas.height > portraitCanvas.width, 'the drawing buffer matches portrait rather than letterboxing a landscape frame');
+  await openMenu(olderPhone);
+  for (const name of ['singleplayer','multiplayer','saves','settings','help','exit']) {
+    if (!await olderPhone.evaluate("document.getElementById('menu-back').hidden")) await tap(olderPhone, '#menu-back');
+    await tap(olderPhone, '[data-page="' + name + '"]');
+    const layout = await olderPhone.evaluate(`(() => {
+      const dialog=document.getElementById('game-menu').getBoundingClientRect(), resume=document.getElementById('menu-resume').getBoundingClientRect(), close=document.getElementById('menu-close').getBoundingClientRect();
+      return {width:document.documentElement.scrollWidth,visible:resume.top>=0&&resume.bottom<=innerHeight&&close.top>=0&&close.bottom<=innerHeight,dialog:dialog.width};
+    })()`);
+    assert.equal(layout.visible,true,name + ': exit and return stay visible in portrait');
+    assert.ok(layout.width<=390&&layout.dialog<=390,name + ': no horizontal overflow');
+    await screenshot(olderPhone,'portrait-menu-' + name + '.png');
+  }
+  await tap(olderPhone,'#menu-resume');
+  await waitFor(async () => (await game(olderPhone)).keyDest === 'game', 'portrait menu return');
+  await olderPhone.send('Emulation.setDeviceMetricsOverride',{width:844,height:390,deviceScaleFactor:2,mobile:true,screenOrientation:{type:'landscapePrimary',angle:90}});
+  await waitFor(() => olderPhone.evaluate("document.getElementById('canvas').width>document.getElementById('canvas').height"), 'renderer resizes on rotation');
+  await olderPhone.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:2,mobile:true,screenOrientation:{type:'portraitPrimary',angle:0}});
+  await waitFor(() => olderPhone.evaluate("document.getElementById('canvas').height>document.getElementById('canvas').width"), 'renderer returns to portrait');
+  passed('all six menu pages fit portrait, and gameplay resizes when the phone rotates');
   assert.deepEqual(await olderPhone.evaluate('window.__quakeErrors'), []);
   await tap(olderPhone, '#view-exit');
+  await openMenu(olderPhone, 'multiplayer');
   await olderPhone.evaluate(`(() => {
     window.__nativeSocket = window.WebSocket;
     window.WebSocket = class {
@@ -325,6 +408,7 @@ try {
   await waitFor(() => page.evaluate("window.quake.logs.some(line => line.includes('Phone fallback chat verified'))"), 'phone chat crosses the compatible connection');
   assert.equal(await olderPhone.evaluate("getComputedStyle(document.getElementById('network-status')).display !== 'none' && !document.getElementById('network-status').closest('[hidden]')"), true);
   await olderPhone.send('Page.bringToFront');
+  await openMenu(olderPhone, 'multiplayer');
   await tap(olderPhone, '#leave');
   await waitFor(async () => (await game(olderPhone))?.serverActive, 'phone leaves multiplayer for single player');
   assert.equal(await olderPhone.evaluate("document.getElementById('join').disabled"), false);
@@ -334,6 +418,10 @@ try {
 } catch (error) {
   failure = error;
   console.error(error.stack);
+  if (activePage) {
+    await screenshot(activePage, 'touch-failure.png').catch(() => {});
+    await writeFile(path.join(artifactDir, 'touch-failure.json'), JSON.stringify(await activePage.evaluate("({state:window.quake?.state(),errors:window.__quakeErrors,logs:window.quake?.logs,loading:document.getElementById('loading').textContent,start:document.getElementById('start').textContent,scrollY,canvas:[document.getElementById('canvas').width,document.getElementById('canvas').height]})").catch(error => ({error:error.message})),null,2));
+  }
 } finally {
   devtools?.close();
   await browser(['close']).catch(() => {});

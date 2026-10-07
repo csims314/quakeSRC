@@ -22,6 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "bgmusic.h"
+#ifdef __EMSCRIPTEN__
+#include "browser_menu.h"
+#endif
 
 void (*vid_menucmdfn)(void); //johnfitz
 void (*vid_menudrawfn)(void);
@@ -208,6 +211,9 @@ M_ToggleMenu_f
 */
 void M_ToggleMenu_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_ToggleMenu()) return;
+#endif
 	m_entersound = true;
 
 	if (key_dest == key_menu)
@@ -243,6 +249,9 @@ int	m_main_cursor;
 
 void M_Menu_Main_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("main")) return;
+#endif
 	if (key_dest != key_menu)
 	{
 		m_save_demonum = cls.demonum;
@@ -338,6 +347,9 @@ int	m_singleplayer_cursor;
 
 void M_Menu_SinglePlayer_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("singleplayer")) return;
+#endif
 	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_singleplayer;
@@ -459,6 +471,9 @@ void M_ScanSaves (void)
 
 void M_Menu_Load_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("saves")) return;
+#endif
 	m_entersound = true;
 	m_state = m_load;
 
@@ -470,6 +485,9 @@ void M_Menu_Load_f (void)
 
 void M_Menu_Save_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("saves")) return;
+#endif
 	if (!sv.active)
 		return;
 	if (cl.intermission)
@@ -607,6 +625,9 @@ int	m_multiplayer_cursor;
 
 void M_Menu_MultiPlayer_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("multiplayer")) return;
+#endif
 	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_multiplayer;
@@ -695,6 +716,9 @@ int		setup_bottom;
 
 void M_Menu_Setup_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("settings")) return;
+#endif
 	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_setup;
@@ -1014,6 +1038,9 @@ int		options_cursor;
 
 void M_Menu_Options_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("settings")) return;
+#endif
 	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_options;
@@ -1369,6 +1396,9 @@ static qboolean	bind_grab;
 
 void M_Menu_Keys_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("help")) return;
+#endif
 	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_keys;
@@ -1543,6 +1573,9 @@ void M_Keys_Key (int k)
 
 void M_Menu_Video_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("settings")) return;
+#endif
 	(*vid_menucmdfn) (); //johnfitz
 }
 
@@ -1567,6 +1600,9 @@ int		help_page;
 
 void M_Menu_Help_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("help")) return;
+#endif
 	IN_Deactivate(modestate == MS_WINDOWED);
 	key_dest = key_menu;
 	m_state = m_help;
@@ -1617,6 +1653,9 @@ qboolean	wasInMenus;
 
 void M_Menu_Quit_f (void)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_OpenMenu("exit")) return;
+#endif
 	if (m_state == m_quit)
 		return;
 	wasInMenus = (key_dest == key_menu);
@@ -2549,6 +2588,9 @@ void M_Menu_Credits_f (void)
 
 void M_Init (void)
 {
+#ifdef __EMSCRIPTEN__
+	Cmd_AddCommand ("web_menu_close", Web_CloseMenu);
+#endif
 	Cmd_AddCommand ("togglemenu", M_ToggleMenu_f);
 
 	Cmd_AddCommand ("menu_main", M_Menu_Main_f);
@@ -2676,6 +2718,13 @@ void M_Draw (void)
 
 void M_Keydown (int key)
 {
+#ifdef __EMSCRIPTEN__
+	if (Web_MenuActive())
+	{
+		if (key == K_ESCAPE || key == K_BBUTTON) Web_CloseMenu();
+		return;
+	}
+#endif
 	switch (m_state)
 	{
 	case m_none:

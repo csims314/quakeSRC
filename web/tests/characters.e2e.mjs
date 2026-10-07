@@ -94,6 +94,7 @@ async function launchAndJoin(session) {
   await browser(session, ['find', 'role', 'button', 'click', '--name', 'Launch Quake']);
   await waitFor(async () => evaluate(session, 'window.quake?.ready && window.quake.state().signon === 4'), 'single-player startup', 60000);
   await browser(session, ['press', 'Escape']);
+  await command(session, 'menu_multiplayer');
   await browser(session, ['find', 'role', 'button', 'click', '--name', await evaluate(session, "document.getElementById('join').textContent")]);
   await waitFor(async () => {
     const current = await state(session);
@@ -183,15 +184,19 @@ try {
   for (const scale of [1, 2, 3]) await checkHudPortrait(scale, ranger, 'chris');
   passed('the complete portrait fits its HUD slot at every status-bar scale');
 
+  await command(nick, 'menu_options');
   await browser(nick, ['select', '#character', 'ranger']);
   await waitFor(async () => (await seen(ranger, 1)) === 'progs/player.mdl', 'switch to the Ranger reaches the other player');
   await browser(nick, ['select', '#character', 'nick']);
+  await command(nick, 'web_menu_close');
   await waitFor(async () => (await seen(ranger, 1)) === NICK_MODEL, 'switch back to Nick reaches the other player');
   passed('changing character mid-game updates what other players see');
 
+  await command(ranger, 'menu_options');
   await browser(ranger, ['select', '#character', 'ranger']);
   await waitFor(async () => (await seen(nick, 2)) === 'progs/player.mdl', 'Chris switches to Ranger');
   await browser(ranger, ['select', '#character', 'chris']);
+  await command(ranger, 'web_menu_close');
   await waitFor(async () => (await seen(nick, 2)) === 'characters/chris/player.mdl', 'Ranger switches back to Chris');
   assert.equal((await state(ranger)).character, 'chris');
   passed('Chris can switch to Ranger and back during multiplayer');

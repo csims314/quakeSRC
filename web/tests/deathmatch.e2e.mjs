@@ -45,6 +45,7 @@ async function joined(session) {
 }
 async function selectRoom(session, mode) {
   await browser(session, ['press', 'Escape']);
+  await evaluate(session, "window.quake.command('menu_multiplayer'); true");
   await browser(session, ['snapshot', '-i']);
   await browser(session, ['select', '#mode', mode]);
   assert.equal(await evaluate(session, "document.getElementById('mode').value"), mode);
@@ -54,6 +55,7 @@ async function selectRoom(session, mode) {
 }
 async function leave(session) {
   await browser(session, ['press', 'Escape']);
+  await evaluate(session, "window.quake.command('menu_multiplayer'); true");
   await browser(session, ['find', 'role', 'button', 'click', '--name', 'Leave multiplayer']);
   await waitFor(async () => (await game(session)).state.serverActive, 'returning to single player');
 }

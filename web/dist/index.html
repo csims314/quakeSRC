@@ -4,80 +4,121 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#11100e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Quake">
   <title>Quake · Multiplayer</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/quake-180.png">
+  <link rel="icon" type="image/png" href="icons/quake-192.png">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="mobile-layout.css">
 </head>
-<body>
+<body class="game-page">
   <header>
     <a class="wordmark" href="/" aria-label="Quake home">QUAKE<span>WEBGL / MULTIPLAYER</span></a>
     <div class="toolbar">
       <span id="status" role="status">Ready</span>
-      <button id="pause" disabled>Pause</button>
-      <label class="mode-label" for="mode">Mode
-        <select id="mode" aria-describedby="multiplayer-summary">
-          <option value="coop">Co-op</option>
-          <option value="deathmatch">Deathmatch</option>
-        </select>
-      </label>
-      <label class="mode-label" for="character"><span id="character-portrait" aria-hidden="true"></span>Character
-        <select id="character"><option value="ranger">Ranger</option></select>
-      </label>
-      <button id="join" disabled>Join co-op</button>
-      <button id="leave" hidden>Leave multiplayer</button>
+      <button id="menu-toggle" disabled>Menu</button>
       <button id="fullscreen">Fullscreen</button>
-      <button id="touch-toggle" aria-pressed="false">Touch controls</button>
-      <button id="backup" disabled>Export saves</button>
-      <label class="button">Import saves<input id="restore" type="file" accept=".json,.sav" hidden></label>
+      <button id="install">Install</button>
     </div>
   </header>
   <main>
     <section id="stage" aria-label="Quake game">
       <canvas id="canvas" width="1280" height="720" tabindex="0" aria-label="Quake game canvas"></canvas>
-      <button id="view-exit" type="button" hidden aria-label="Exit fullscreen">Exit fullscreen</button>
+      <button id="view-exit" type="button" hidden aria-label="Exit expanded view">Exit view</button>
       <div id="cover">
         <div class="intro">
-          <div class="sigil" aria-hidden="true">Ϙ</div>
           <p class="eyebrow">THE ORIGINAL GAME. IN YOUR BROWSER.</p>
           <h1>Enter the slipgate.</h1>
-          <p>QuakeSpasm, the original levels, and the original game logic.<br>Play the installed shareware episode or load your own Quake PAK files.</p>
+          <p class="intro-note">Play the first episode, solo or with friends.<br>Choose a character and jump in.</p>
           <fieldset class="characters"><legend>Choose your character</legend><div id="character-cards"></div></fieldset>
-          <button id="start" class="primary">Launch Quake <span>↗</span></button>
-          <label class="pak-label">Use your purchased game files <input id="paks" type="file" accept=".pak" multiple></label>
-          <label class="pak-label">Add your soundtrack (track02.ogg … track11.ogg) <input id="music-files" type="file" accept=".ogg,.oga,.opus,.mp3,.flac,.wav,.m4a,audio/*" multiple></label>
-          <p id="loading" role="status" aria-live="polite">Saves stay in this browser. Export a backup to keep them.</p>
+          <button id="start" class="primary">Launch Quake <span aria-hidden="true">↗</span></button>
+          <p id="loading" role="status" aria-live="polite">Saves stay in this browser. Export a backup from the game menu.</p>
+          <p class="phone-note">Touch controls turn on automatically. Menu gives you saves, settings, and multiplayer.</p>
+          <details class="launch-files">
+            <summary>Full game files &amp; soundtrack <span>optional</span></summary>
+            <label class="pak-label">Purchased game: pak0.pak and pak1.pak<input id="paks" type="file" accept=".pak" multiple></label>
+            <label class="pak-label">Soundtrack: track02.ogg … track11.ogg<input id="music-files" type="file" accept=".ogg,.oga,.opus,.mp3,.flac,.wav,.m4a,audio/*" multiple></label>
+            <p>Files you select stay on your device. The included shareware has no soundtrack.</p>
+          </details>
         </div>
       </div>
-      <div id="capture" hidden><button id="resume" class="primary">Click to play</button><p>Esc releases your mouse. Click the game to return.</p></div>
+      <div id="capture" hidden><button id="resume" class="primary">Click to play</button><p>Esc opens the game menu. Click the game to return.</p></div>
+      <dialog id="game-menu" aria-labelledby="menu-title">
+        <div class="menu-shell">
+          <div class="menu-header"><button id="menu-back" aria-label="Back to game menu" hidden>← Back</button><h2 id="menu-title">Game menu</h2><button id="menu-close" aria-label="Close game menu">✕</button></div>
+          <div class="menu-body">
+            <section data-menu-panel="main">
+              <p id="menu-context" class="menu-note">Single player</p>
+              <nav class="menu-actions" aria-label="Game menu">
+                <button data-page="singleplayer">New game<span>Campaign &amp; difficulty</span></button>
+                <button data-page="multiplayer">Multiplayer<span>Co-op or deathmatch</span></button>
+                <button data-page="saves">Save &amp; load<span>Your single-player progress</span></button>
+                <button data-page="settings">Settings<span>Character, controls, picture &amp; sound</span></button>
+                <button data-page="help">Controls &amp; console<span>Touch, keyboard &amp; commands</span></button>
+                <button data-page="exit">Return to launcher<span>Finish this session</span></button>
+              </nav>
+            </section>
+            <section data-menu-panel="singleplayer" hidden>
+              <p class="menu-note">Starting a new game leaves your current session. Save your single-player progress first.</p>
+              <label class="field">Difficulty<select id="difficulty"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option><option value="3">Nightmare</option></select></label>
+              <label class="field">Start at<select id="newgame-map"><option value="start">Difficulty &amp; episode selector</option><option value="e1m1">Episode 1: Dimension of the Doomed</option></select></label>
+              <p class="menu-note">In the selector, walk through a difficulty portal, then an episode portal.</p>
+              <button id="newgame" class="primary">Start new game</button>
+            </section>
+            <section data-menu-panel="multiplayer" hidden>
+              <label class="field" for="mode">Game mode<select id="mode" aria-describedby="multiplayer-summary"><option value="coop">Co-op</option><option value="deathmatch">Deathmatch</option></select></label>
+              <p id="multiplayer-summary" role="status">Co-op · Original monsters · Normal · Up to 8 players</p>
+              <div class="menu-row"><button id="join" class="primary" disabled>Join co-op</button><button id="leave" hidden>Leave multiplayer</button></div>
+              <p id="network-status" role="status" aria-live="polite">Choose a mode and join this site's shared server.</p>
+              <p class="menu-note">Co-op shares the campaign and its monsters. Deathmatch is player versus player with weapons and pickups. Press Fire to respawn.</p>
+              <form id="chat-form"><label class="field" for="chat">Chat with players<input id="chat" maxlength="120" placeholder="Say something…" autocomplete="off"></label><button id="chat-send" disabled>Send chat</button><p id="chat-status" role="status"></p></form>
+              <a href="/status" target="_blank" rel="noopener">Who's playing ↗</a>
+              <details><summary>Custom server</summary><label class="field" for="server-url">Multiplayer server URL<input id="server-url" type="url" placeholder="Use this site's server" aria-describedby="network-status"></label></details>
+            </section>
+            <section data-menu-panel="saves" hidden>
+              <p id="saves-note" class="menu-note">Save and load a local single-player game.</p>
+              <div id="save-slots"></div>
+              <p id="save-result" role="status" aria-live="polite"></p>
+              <div class="menu-row"><button id="backup" disabled>Export saves</button><label class="button">Import saves<input id="restore" type="file" accept=".json,.sav" hidden></label></div>
+              <p class="menu-note">Export a backup before moving to another browser or the Home Screen app. Its storage may be separate.</p>
+            </section>
+            <section data-menu-panel="settings" hidden>
+              <label class="field" for="character"><span class="character-label"><span id="character-portrait" aria-hidden="true"></span>Character</span><select id="character"><option value="ranger">Ranger</option></select></label>
+              <form id="name-form" class="menu-row"><label class="field" for="player-name">Player name<input id="player-name" maxlength="15" autocomplete="off"></label><button>Set name</button></form>
+              <div class="settings-grid">
+                <label class="slider">Look sensitivity <output for="sensitivity"></output><input id="sensitivity" type="range" min="1" max="10" step="0.25" data-setting="sensitivity"></label>
+                <label class="slider">Sound volume <output for="sound-volume"></output><input id="sound-volume" type="range" min="0" max="1" step="0.05" data-setting="volume"></label>
+                <label class="slider">Music volume <output for="music-volume"></output><input id="music-volume" type="range" min="0" max="1" step="0.05" data-setting="bgmvolume"></label>
+                <label class="slider">Field of view <output for="field-of-view"></output><input id="field-of-view" type="range" min="75" max="120" step="5" data-setting="fov"></label>
+                <label class="slider">Brightness <output for="brightness"></output><input id="brightness" type="range" min="0.5" max="1" step="0.05" data-setting="gamma"></label>
+                <label class="slider">HUD size <output for="hud-size"></output><input id="hud-size" type="range" min="1" max="4" step="0.25" data-setting="scr_sbarscale"></label>
+              </div>
+              <div class="menu-row"><label class="check"><input id="always-run" type="checkbox">Always run (keyboard)</label><label class="check"><input id="invert-look" type="checkbox">Invert look</label><button id="touch-toggle" aria-pressed="false">Touch controls</button></div>
+              <p class="menu-note">Touch movement always uses an analog stick. Lower brightness values brighten Quake's picture.</p>
+              <details class="music-row"><summary>Soundtrack</summary><p>Music: <span id="music-status">checking…</span>. Add tracks named track02.ogg through track11.ogg (other audio formats also work).</p><div class="menu-row"><label class="button">Add music<input id="music-add" type="file" accept=".ogg,.oga,.opus,.mp3,.flac,.wav,.m4a,audio/*" multiple hidden></label><button id="music-clear" disabled>Remove your music</button></div><p id="music-note" role="status" aria-live="polite"></p></details>
+            </section>
+            <section data-menu-panel="help" hidden>
+              <p><strong>Touch:</strong> drag on the left to move, drag on the right or Fire to look. Use Jump, Weapon, Menu, and Scores.</p>
+              <p><strong>Keyboard:</strong> WASD moves, Mouse looks and fires, Space jumps, Tab shows scores, Esc opens this menu, and ~ opens the engine console.</p>
+              <button id="reset-controls">Reset keyboard controls</button>
+              <form id="binding-form"><label class="field" for="binding-action">Customize a keyboard control<select id="binding-action"><option value="+forward">Move forward</option><option value="+back">Move backward</option><option value="+moveleft">Strafe left</option><option value="+moveright">Strafe right</option><option value="+jump">Jump</option><option value="+attack">Fire</option><option value="+speed">Run / walk</option><option value="impulse 10">Next weapon</option><option value="+showscores">Scores</option></select></label><label class="field" for="binding-key">Key<select id="binding-key"><option value="w">W</option><option value="s">S</option><option value="a">A</option><option value="d">D</option><option value="SPACE">Space</option><option value="MOUSE1">Mouse 1</option><option value="MOUSE2">Mouse 2</option><option value="MOUSE3">Mouse 3</option><option value="SHIFT">Shift</option><option value="CTRL">Ctrl</option><option value="TAB">Tab</option><option value="UPARROW">Up</option><option value="DOWNARROW">Down</option><option value="LEFTARROW">Left</option><option value="RIGHTARROW">Right</option></select></label><button>Assign key</button><p id="binding-result" role="status"></p></form>
+              <form id="command-form"><label class="field" for="command">Engine console command<input id="command" placeholder="e.g. map e1m1" autocomplete="off" autocapitalize="off" spellcheck="false"></label><button id="send-command" disabled>Run</button></form>
+              <details><summary>Engine log</summary><pre id="log"></pre></details>
+            </section>
+            <section data-menu-panel="exit" hidden><p>Your saved games stay in this browser. Unsaved level progress will be lost.</p><button data-page="saves">Save first</button><button id="exit-game" class="primary">Return to launcher</button></section>
+          </div>
+          <div class="menu-footer"><span id="menu-hint">Single player pauses here. Multiplayer keeps running.</span><button id="menu-resume" class="primary">Return to game</button></div>
+        </div>
+      </dialog>
     </section>
-    <div class="below">
-      <p><kbd>W A S D</kbd> move <kbd>Mouse</kbd> look / fire <kbd>Space</kbd> jump <kbd>Esc</kbd> menu <kbd>~</kbd> console</p>
-      <span class="below-links"><a href="/status">Who's playing</a>
-      <button id="details-toggle" aria-expanded="false" aria-controls="details">Controls &amp; details</button></span>
-    </div>
-    <p id="multiplayer-summary" role="status">Co-op · Original monsters · Normal · Up to 8 players</p>
-    <p id="network-status" role="status" aria-live="polite">Join co-op or deathmatch after launching.</p>
-    <section id="details" hidden>
-      <p>Start a game with <strong>Esc → Single Player → New Game</strong>. Use the in-game menus to change controls, difficulty, video, sound, and saves. Mouse capture and audio require a click.</p>
-      <p>On a phone or tablet, <strong>Touch controls</strong> turn on by themselves: drag on the left to move (push further to run), drag on the right or on Fire to look, and use Menu for the game menus. The game's Mouse Speed option also sets how fast the view turns.</p>
-      <div class="music-row">
-        <p>Music: <span id="music-status">checking…</span>. Name files like <code>track02.ogg</code> to <code>track11.ogg</code>, matching the original CD tracks. Your files stay in this browser and are used before any music on the server. Change the volume in Options → Music Volume.</p>
-        <label class="button">Add music<input id="music-add" type="file" accept=".ogg,.oga,.opus,.mp3,.flac,.wav,.m4a,audio/*" multiple hidden></label>
-        <button id="music-clear" disabled>Remove your music</button>
-        <p id="music-note" role="status" aria-live="polite"></p>
-      </div>
-      <p>The installed data contains the first episode. Select <code>pak0.pak</code> and <code>pak1.pak</code> from your purchased copy before launching to play the full campaign. Files you select stay on your computer.</p>
-      <p>The original shareware is available as a <a href="/assets/quake106.zip">complete, unchanged archive</a>. Its <a href="/assets/shareware-license.txt">original license</a> accompanies the game data.</p>
-      <p>Click <strong>Join co-op</strong> to fight Quake's original monsters together on the shared server. Up to eight players share the campaign, enemies, and level progress. Other players can open this page and join the same game. Use Quake's console to chat with <code>say hello</code>. Single-player saves remain available after leaving multiplayer.</p>
-      <p>Select <strong>Deathmatch</strong>, then click <strong>Join deathmatch</strong> for player-versus-player combat in a separate eight-player room. There are no monsters. Use the original weapons and pickups, hold <kbd>Tab</kbd> for frag scores, and press fire after dying to respawn. A round ends at 20 frags or 10 minutes; press fire after intermission to start the next round. Switching modes moves only you; co-op continues for its other players.</p>
-      <label for="server-url">Multiplayer server (optional)</label>
-      <input id="server-url" type="url" placeholder="Use this site's server" aria-describedby="network-status">
-      <p>This build runs QuakeSpasm through WebAssembly and <a href="https://github.com/ptitSeb/gl4es">GL4ES</a>. The shareware data has no soundtrack; add your own above.</p>
-      <form id="command-form"><label for="command">Engine console command</label><div><input id="command" placeholder="e.g. map e1m1" autocomplete="off"><button id="send-command" disabled>Run</button></div></form>
-      <details><summary>Engine log</summary><pre id="log"></pre></details>
-      <p class="licenses"><a href="https://github.com/csims314/quakeSRC">Project source</a> · <a href="engine/LICENSE.txt">QuakeSpasm GPL license</a> · <a href="engine/GL4ES-LICENSE.txt">GL4ES license</a> · <a href="characters/CREDITS.txt">Character credits</a></p>
-    </section>
+    <div class="below"><p class="keyboard-hint"><kbd>W A S D</kbd> move <kbd>Mouse</kbd> look / fire <kbd>Esc</kbd> menu</p><span class="below-links"><a href="/status">Who's playing</a><button id="details-toggle" aria-expanded="false" aria-controls="details">About this build</button></span></div>
+    <section id="details" hidden><p>Open <strong>Menu</strong> for new games, saves, multiplayer, settings, and controls. This web build uses a single browser menu in place of Quake's desktop menus.</p><p>The installed shareware contains episode 1. Before launching, open <strong>Full game files &amp; soundtrack</strong> and select pak0.pak and pak1.pak from your purchased copy for the full campaign.</p><p>On iPhone, use <strong>Install</strong> for instructions to open Quake from the Home Screen without the browser address bar. Export and import saves if moving between the browser and that app.</p><p>The original shareware is available as a <a href="/assets/quake106.zip">complete, unchanged archive</a>, with its <a href="/assets/shareware-license.txt">original license</a>.</p><p class="licenses"><a href="https://github.com/csims314/quakeSRC">Project source</a> · <a href="engine/LICENSE.txt">QuakeSpasm GPL license</a> · <a href="engine/GL4ES-LICENSE.txt">GL4ES license</a> · <a href="characters/CREDITS.txt">Character credits</a></p></section>
   </main>
   <footer><span>QUAKESPASM / WEBASSEMBLY + WEBGL</span><span id="save-status">LOCAL SINGLE PLAYER</span></footer>
+  <dialog id="install-dialog" aria-labelledby="install-title"><div class="install-header"><h2 id="install-title">Play without the address bar</h2><button id="install-close" aria-label="Close install instructions">✕</button></div><div class="install-content"><p id="install-instructions">On iPhone, open this site in Safari, tap Share, then Add to Home Screen. Keep Open as Web App enabled, tap Add, and launch Quake from the new Home Screen icon.</p><p>In a regular iPhone browser tab, Expand game fills the available view; it cannot remove the browser's address bar.</p><p>Before switching, export saves from Menu → Save &amp; load. Import them in the Home Screen app if they aren't already there.</p><button id="install-prompt" class="primary" hidden>Install Quake</button></div></dialog>
   <script src="engine/quakespasm.js"></script>
   <script type="module" src="app.js"></script>
 </body>

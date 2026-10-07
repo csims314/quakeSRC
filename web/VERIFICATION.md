@@ -1,5 +1,38 @@
 # Browser verification
 
+## Mobile menus and damaged portraits — October 7, 2026
+
+The web client now uses one HTML menu connected to Quake's command buffer and
+input destination. The original menus remain available to editor/headless
+contexts that do not install the browser callback.
+
+`npm test` passes 57 checks. Custom portrait tests verify increasing red blood
+coverage in the actual 24×24 palette images, including the pain animation.
+Visual review also checked all five health tiers for Nick and Chris.
+
+`npm run test:touch` passes with real Chromium touch events and pointer-lock,
+fullscreen and (for the portrait peer) WebTransport APIs removed before load:
+
+- Launch is visible without scrolling at 320×568, 390×844, 844×390 and 915×412.
+- Menu/return/close controls remain visible across all six portrait menu pages.
+- Local game time stops in the menu. Settings change engine sensitivity.
+- New game starts the requested level at Hard difficulty; saving writes and
+  syncs a real Quake save, and loading restores its map, difficulty and position.
+- Expanded portrait rendering uses a portrait drawing buffer and resizes on
+  rotation. Touch movement, simultaneous look/movement and weapon fire work.
+- Co-op, native/WebSocket peers, chat, failed-join recovery and leaving work.
+- Manifest/Apple metadata and accessible install instructions are present.
+
+`npm run test:deathmatch` also passes the desktop three-browser flow: native and
+WebSocket deathmatch peers alongside a co-op peer, live damage/death/frag scores,
+respawn, both round limits, and room switching without JavaScript errors.
+
+Home Screen installation is configured for standalone mode. Regular iPhone
+tabs still control their own browser chrome; the fallback button is labeled
+**Expand game**. These tests do not verify installation or address-bar removal
+on physical iPhone hardware. Instructions follow Apple's
+[Home Screen web-app guide](https://support.apple.com/guide/iphone/open-as-web-app-iphea86e5236/ios).
+
 ## iOS co-op join regression — October 7, 2026
 
 The prior mobile test covered missing desktop input APIs, but not Apple's native

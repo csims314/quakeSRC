@@ -167,6 +167,19 @@ for (const character of custom) {
       assert.ok(!lump.subarray(8).includes(255), `${face} must be opaque`);
     }
   });
+
+  test(`${character.name}'s wounds remain clearly visible in the native 24px HUD palette`, () => {
+    const palette = readFileSync(new URL('../../tools/characters/vendor/librequake/palette.lmp', import.meta.url));
+    const blood = name => [...readFileSync(new URL(`${character.id}/${name}.lmp`, root)).subarray(8)].filter(index => {
+      const [r, g, b] = palette.subarray(index * 3, index * 3 + 3);
+      return r > 75 && r > g * 2.5 && r > b * 2.5;
+    }).length;
+    const tiers = [1, 2, 3, 4, 5].map(level => blood('face' + level));
+    assert.ok(tiers[1] >= 10, 'the first injured tier must retain a substantial red wound after downsampling');
+    assert.ok(tiers[4] >= 100, 'critical injuries must cover a visible portion of the 576-pixel portrait');
+    assert.ok(tiers.every((count, i) => !i || count > tiers[i - 1]), 'blood coverage must increase as health falls');
+    assert.ok(blood('face_p1') >= 10, 'pain animation must not paint over the wounds');
+  });
 }
 
 test('installation writes each character and the engine list', async () => {

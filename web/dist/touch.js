@@ -115,7 +115,7 @@ export function createTouchControls(stage, game) {
     try { next = game.state().keyDest || 'game'; } catch {}
     if (next === 'message') next = 'game';
     if (next !== mode) { releaseAll(); mode = next; root.dataset.mode = mode; }
-    root.hidden = !enabled || !game.ready();
+    root.hidden = !enabled || !game.ready() || Boolean(game.menuOpen?.());
   }
 
   function setEnabled(value) {
@@ -127,7 +127,7 @@ export function createTouchControls(stage, game) {
     refresh();
   }
 
-  return { setEnabled, refresh, get enabled() { return enabled; } };
+  return { setEnabled, refresh, releaseAll, get enabled() { return enabled; } };
 }
 
 export function prefersTouch() {

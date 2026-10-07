@@ -2,11 +2,14 @@ import { createQuakeTransport, connectQuake } from './network.js';
 import { createMusicPlayer } from './music.js';
 import { createTouchControls, prefersTouch } from './touch.js';
 import { DEFAULT_CHARACTER, validateManifest, installCharacters } from './characters.js';
+import { createGameMenu } from './menu.js';
+import { createGameView } from './game-view.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('canvas');
 const logs = [];
-let engine, starting = false, ready = false, pausedByToolbar = false;
+const logObservers = new Set();
+let engine, starting = false, ready = false;
 let pendingRestore;
 let syncTimer;
 let joining = false, leaving = false;
@@ -118,7 +121,7 @@ const transport = createQuakeTransport(event => {
   if (event.state === 'closed' && transport.snapshot().some(connection => connection.open)) return;
   $('network-status').textContent = event.state === 'ready' ? 'Connected. Joining the game…' : `Disconnected: ${event.reason}`;
   if (event.state === 'closed') {
-    if (!joining) { activeMode = null; $('pause').disabled = !ready; }
+    if (!joining) activeMode = null;
     updateJoinButton();
     $('leave').hidden = true;
   }
@@ -130,7 +133,8 @@ window.addEventListener('unhandledrejection', event => window.__quakeErrors.push
 // the player opt in through Click to play, the canvas, or Fullscreen so Esc
 // reliably leaves the toolbar usable throughout a room transition.
 const nativePointerLock = canvas.requestPointerLock?.bind(canvas);
-const releaseMouse = () => document.exitPointerLock?.();
+let mouseReleasedOnPurpose = false, hadMouseCapture = false;
+const releaseMouse = () => { if (document.pointerLockElement === canvas) mouseReleasedOnPurpose = true; document.exitPointerLock?.(); };
 let captureRequested = false;
 canvas.requestPointerLock = (...args) => {
   if (!captureRequested || !nativePointerLock || touch.enabled) return Promise.resolve();
@@ -167,7 +171,22 @@ const touch = createTouchControls($('stage'), {
   key: (code, down) => engine.ccall('Web_Key', null, ['number', 'number'], [code, down ? 1 : 0]),
   command: text => command(text),
   state: () => window.quake.state(),
+  menuOpen: () => menu.openNow,
 });
+function localGame() {
+  transport.closeAll(); activeMode = null;
+  $('leave').hidden = true;
+  $('chat-send').disabled = true; $('save-status').textContent = 'LOCAL SINGLE PLAYER';
+  updateJoinButton();
+}
+const menu = createGameMenu({
+  command, state: () => window.quake.state(), fs: () => engine.FS,
+  onLog: callback => { logObservers.add(callback); return () => logObservers.delete(callback); },
+  sync, localGame, release: releaseMouse,
+  resume: async () => { await waitForGame(state => state.keyDest === 'game'); await capture(); },
+  changed: open => { if (open) touch.releaseAll(); touch.refresh(); updateCaptureHint(); },
+});
+const view = createGameView({ stage: $('stage'), canvas, ready: () => ready, engine: () => engine, capture, log });
 let touchChoice = null;
 try { touchChoice = localStorage.getItem('quake-touch'); } catch {}
 function setTouch(enabled, remember = false) {
@@ -179,12 +198,13 @@ function setTouch(enabled, remember = false) {
 }
 // Touch play needs no mouse capture, so the Click to play prompt stays away.
 function updateCaptureHint() {
-  $('capture').hidden = !ready || touch.enabled || document.pointerLockElement === canvas;
+  $('capture').hidden = !ready || menu.openNow || touch.enabled || document.pointerLockElement === canvas;
 }
 
 function log(line) {
   console.log(line);
   logs.push(String(line));
+  for (const observer of [...logObservers]) observer(String(line));
   if (logs.length > 500) logs.shift();
   $('log').textContent = logs.join('\n');
   if (String(line).includes('Quake Initialized')) {
@@ -195,7 +215,8 @@ function log(line) {
       $('cover').hidden = true;
       updateCaptureHint();
       touch.refresh();
-      for (const id of ['pause', 'backup', 'send-command']) $(id).disabled = false;
+      for (const id of ['menu-toggle', 'backup', 'send-command']) $(id).disabled = false;
+      view.launched();
       updateJoinButton();
     }, 0);
   }
@@ -266,7 +287,7 @@ async function start() {
     if (typeof createQuakeSpasm !== 'function') throw new Error('Browser engine is missing. Run build-web.cmd first.');
     await musicReady;
     engine = await createQuakeSpasm({
-      canvas, noInitialRun: true, quakeTransport: transport, quakeMusic: music,
+      canvas, noInitialRun: true, quakeTransport: transport, quakeMusic: music, quakeMenu: page => menu.change(page),
       locateFile: name => `engine/${name}`,
       print: log, printErr: log,
       onAbort: reportError,
@@ -319,7 +340,7 @@ async function start() {
     });
     // Use original gameplay; only supply desktop browser-friendly input defaults.
     if (!engine.FS.analyzePath('/user/id1/config.cfg').exists) {
-      engine.FS.writeFile('/user/id1/config.cfg', 'bind w +forward\nbind s +back\nbind a +moveleft\nbind d +moveright\nbind SPACE +jump\nbind MOUSE1 +attack\nbind TAB +showscores\n+mlook\n');
+      engine.FS.writeFile('/user/id1/config.cfg', 'bind w +forward\nbind s +back\nbind a +moveleft\nbind d +moveright\nbind SPACE +jump\nbind MOUSE1 +attack\nbind TAB +showscores\n+mlook\n' + (touch.enabled ? 'scr_sbarscale 3\n' : ''));
     }
     if (pendingRestore) { await applyRestore(pendingRestore); pendingRestore = null; }
     $('loading').textContent = 'Starting Quake…';
@@ -337,7 +358,6 @@ async function start() {
 async function capture() {
   if (!ready) return;
   canvas.focus();
-  if (pausedByToolbar) { command('pause'); pausedByToolbar = false; $('pause').textContent = 'Pause'; }
   if (!nativePointerLock && navigator.maxTouchPoints > 0) setTouch(true);
   if (touch.enabled) return;
   try {
@@ -370,7 +390,7 @@ $('join').addEventListener('click', async () => {
     const connectionId = await connectQuake(transport, target, { forceWebSocket,
         onProgress: text => { $('network-status').textContent = text; },
         onFallback: reason => log(`Using compatible connection: ${reason}`) });
-      command('stopdemo\nconnect webtransport\nmenu_main\ntogglemenu');
+      command('stopdemo\nconnect webtransport');
       await waitForGame(state => state.connectionId === connectionId && state.signon === 4 && !state.serverActive);
     };
     try { await joinGame(false); }
@@ -386,22 +406,24 @@ $('join').addEventListener('click', async () => {
     $('network-status').textContent = `Connected to ${entered ? 'multiplayer' : config.mode === 'coop' ? 'co-op' : 'deathmatch'}. ${touch.enabled ? 'Tap' : 'Click'} the game to play.`;
     $('save-status').textContent = entered ? 'MULTIPLAYER' : config.mode === 'coop' ? 'CO-OP / ORIGINAL MONSTERS' : 'DEATHMATCH';
     activeMode = entered ? 'custom' : config.id || selectedMode();
-    pausedByToolbar = false; $('pause').textContent = 'Pause';
-    $('pause').disabled = !entered && config.mode === 'deathmatch';
+    $('chat-send').disabled = false;
+    command('web_menu_close');
   } catch (error) {
     transport.closeAll();
     $('network-status').textContent = error.message;
-    activeMode = null; command('map start');
+    activeMode = null; command('map start\nmenu_multiplayer');
+    $('chat-send').disabled = true;
     log(error.message);
   } finally { joining = false; updateJoinButton(); }
 });
 $('leave').addEventListener('click', async () => {
   leaving = true;
-  command('disconnect\nmap start\nmenu_main\ntogglemenu');
+  command('web_menu_close\ndisconnect\nmap start');
   transport.closeAll();
-  activeMode = null; updateJoinButton(); $('leave').hidden = true; $('pause').disabled = false;
+  activeMode = null; updateJoinButton(); $('leave').hidden = true;
   $('network-status').textContent = 'Returning to single player…';
   $('save-status').textContent = 'LOCAL SINGLE PLAYER';
+  $('chat-send').disabled = true;
   try {
     await waitForGame(state => state.serverActive && state.map === 'start' && state.signon === 4);
     releaseMouse();
@@ -412,7 +434,12 @@ $('leave').addEventListener('click', async () => {
 $('resume').addEventListener('click', capture);
 canvas.addEventListener('click', capture);
 canvas.addEventListener('contextmenu', event => event.preventDefault());
-document.addEventListener('pointerlockchange', updateCaptureHint);
+document.addEventListener('pointerlockchange', () => {
+  const captured = document.pointerLockElement === canvas;
+  if (hadMouseCapture && !captured && !mouseReleasedOnPurpose && !menu.openNow && !joining && ready) menu.open('main');
+  hadMouseCapture = captured; mouseReleasedOnPurpose = false;
+  updateCaptureHint();
+});
 $('touch-toggle').addEventListener('click', () => setTouch(!touch.enabled, true));
 // A finger on the game turns touch controls on unless the player turned them off.
 $('stage').addEventListener('pointerdown', event => {
@@ -424,41 +451,6 @@ $('music-clear').addEventListener('click', async () => {
   try { showMusic(await music.clearFiles()); $('music-note').textContent = 'Removed your music from this browser.'; }
   catch (error) { $('music-note').textContent = `Could not remove music: ${error.message}`; }
 });
-$('pause').addEventListener('click', () => {
-  command('pause'); pausedByToolbar = !pausedByToolbar;
-  $('pause').textContent = pausedByToolbar ? 'Resume' : 'Pause';
-  if (pausedByToolbar) releaseMouse();
-});
-function updateGameView() {
-  const expanded = $('stage').classList.contains('expanded') || document.fullscreenElement === $('stage');
-  $('view-exit').hidden = !expanded;
-  $('fullscreen').setAttribute('aria-pressed', String(expanded));
-}
-function expandGame(value) {
-  $('stage').classList.toggle('expanded', value);
-  document.body.classList.toggle('expanded-game', value);
-  updateGameView();
-}
-document.addEventListener('fullscreenchange', updateGameView);
-$('view-exit').addEventListener('click', async () => {
-  if (document.fullscreenElement) await document.exitFullscreen?.();
-  expandGame(false);
-});
-$('fullscreen').addEventListener('click', async () => {
-  try {
-    if (document.fullscreenElement) await document.exitFullscreen?.();
-    else if ($('stage').classList.contains('expanded')) expandGame(false);
-    else {
-      if ($('stage').requestFullscreen) {
-        try { await $('stage').requestFullscreen(); }
-        catch { expandGame(true); }
-      } else expandGame(true);
-      if (touch.enabled) await screen.orientation?.lock?.('landscape').catch(() => {});
-    }
-    updateGameView();
-    if (ready) await capture();
-  } catch (error) { log(`Fullscreen: ${error.message}`); }
-});
 $('details-toggle').addEventListener('click', () => {
   $('details').hidden = !$('details').hidden;
   $('details-toggle').setAttribute('aria-expanded', String(!$('details').hidden));
@@ -468,6 +460,7 @@ $('restore').addEventListener('change', async event => {
   try { await applyRestore(event.target.files[0]); }
   catch (error) { $('save-status').textContent = 'IMPORT FAILED'; log(error.message); }
   event.target.value = '';
+  if (ready && menu.page === 'saves') menu.refreshSaves();
 });
 $('backup').addEventListener('click', async () => {
   try {

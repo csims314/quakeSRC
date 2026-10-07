@@ -4,6 +4,7 @@
 #include "quakedef.h"
 #include "net_defs.h"
 #include <emscripten/emscripten.h>
+#include "browser_menu.h"
 
 static void Web_JsonString(char *out, size_t capacity, const char *in);
 static void Web_JsonName(char *out, size_t capacity, const char *in);
@@ -22,6 +23,40 @@ EMSCRIPTEN_KEEPALIVE void Web_Command(const char *command)
 #define WEB_KEY_QUEUE 32
 static float web_move_forward, web_move_side, web_look_yaw, web_look_pitch;
 static int web_keys[WEB_KEY_QUEUE][2], web_key_head, web_key_count;
+static qboolean web_menu_active;
+
+qboolean Web_MenuActive(void) { return web_menu_active; }
+
+qboolean Web_OpenMenu(const char *page)
+{
+    if (!EM_ASM_INT({ return typeof Module.quakeMenu === 'function'; })) return false;
+    IN_Deactivate(modestate == MS_WINDOWED);
+    Key_ClearStates();
+    web_move_forward = web_move_side = web_look_yaw = web_look_pitch = 0;
+    key_dest = key_menu;
+    m_state = m_none; /* HTML draws the menu; the game still owns input/pause. */
+    web_menu_active = true;
+    EM_ASM({ Module.quakeMenu(UTF8ToString($0)); }, page);
+    return true;
+}
+
+void Web_CloseMenu(void)
+{
+    if (!web_menu_active) return;
+    web_menu_active = false;
+    key_dest = key_game;
+    m_state = m_none;
+    Key_ClearStates();
+    web_move_forward = web_move_side = web_look_yaw = web_look_pitch = 0;
+    IN_Activate();
+    EM_ASM({ if (Module.quakeMenu) Module.quakeMenu(null); });
+}
+
+qboolean Web_ToggleMenu(void)
+{
+    if (web_menu_active) { Web_CloseMenu(); return true; }
+    return Web_OpenMenu("main");
+}
 
 EMSCRIPTEN_KEEPALIVE void Web_SetMove(float forward, float side)
 {
@@ -32,7 +67,17 @@ EMSCRIPTEN_KEEPALIVE void Web_SetMove(float forward, float side)
 EMSCRIPTEN_KEEPALIVE void Web_Look(float yaw, float pitch)
 {
     web_look_yaw += yaw;
-    web_look_pitch += pitch;
+    web_look_pitch += Cvar_VariableValue("m_pitch") < 0 ? -pitch : pitch;
+}
+
+/* Match the drawing buffer to the actual game view, including phone rotation.
+ * The DOM owns its CSS size; this only changes Quake's rendering dimensions. */
+EMSCRIPTEN_KEEPALIVE void Web_Viewport(int width, int height)
+{
+    if (width < 64 || height < 64 || width > 4096 || height > 4096) return;
+    vid.width = width;
+    vid.height = height;
+    vid.recalc_refdef = true;
 }
 
 EMSCRIPTEN_KEEPALIVE void Web_Key(int key, int down)
@@ -75,7 +120,9 @@ EMSCRIPTEN_KEEPALIVE const char *Web_State(void)
 {
     static char state[8192];
     const vec_t *origin = vec3_origin;
+    char player_name[512];
     int i, length;
+    Web_JsonName(player_name, sizeof(player_name), Cvar_VariableString("name"));
     if (cl_entities && cls.state == ca_connected && cl.viewentity < cl.num_entities)
         origin = cl_entities[cl.viewentity].origin;
     q_snprintf(state, sizeof(state),
@@ -84,7 +131,8 @@ EMSCRIPTEN_KEEPALIVE const char *Web_State(void)
         "\"signon\":%d,\"connectionId\":%d,\"serverActive\":%d,\"serverTime\":%.3f,\"connections\":%d,"
         "\"map\":\"%s\",\"coop\":%d,\"deathmatch\":%d,\"nomonsters\":%d,\"skill\":%d,"
         "\"totalMonsters\":%d,\"killedMonsters\":%d,\"intermission\":%d,"
-        "\"fragLimit\":%d,\"timeLimit\":%.3f,\"keyDest\":\"%s\",\"sensitivity\":%.3f,\"character\":\"%s\",\"players\":[",
+        "\"fragLimit\":%d,\"timeLimit\":%.3f,\"keyDest\":\"%s\",\"sensitivity\":%.3f,\"character\":\"%s\","
+        "\"settings\":{\"volume\":%.3f,\"musicVolume\":%.3f,\"fov\":%.3f,\"gamma\":%.3f,\"hudScale\":%.3f,\"alwaysRun\":%d,\"invertLook\":%d,\"name\":\"%s\",\"fullCampaign\":%d},\"players\":[",
         cl.time, cls.state == ca_connected, cl.paused, cl.stats[STAT_HEALTH], cl.stats[STAT_AMMO],
         origin[0], origin[1], origin[2], cl.viewangles[0], cl.viewangles[1], cl.viewangles[2],
         cls.signon, cls.netcon && cls.netcon->driver == 1 ? cls.netcon->socket : 0, sv.active, sv.time, net_activeconnections,
@@ -94,7 +142,11 @@ EMSCRIPTEN_KEEPALIVE const char *Web_State(void)
         sv.active && pr_global_struct ? (int)pr_global_struct->killed_monsters : cl.stats[STAT_MONSTERS],
         cl.intermission, (int)fraglimit.value, timelimit.value,
         key_dest == key_menu ? "menu" : key_dest == key_console ? "console" : key_dest == key_message ? "message" : "game", sensitivity.value,
-        Character_ValidName(cl_character.string) ? cl_character.string : "");
+        Character_ValidName(cl_character.string) ? cl_character.string : "",
+        Cvar_VariableValue("volume"), Cvar_VariableValue("bgmvolume"), Cvar_VariableValue("fov"),
+        Cvar_VariableValue("gamma"), Cvar_VariableValue("scr_sbarscale"),
+        Cvar_VariableValue("cl_forwardspeed") > 200, Cvar_VariableValue("m_pitch") < 0,
+        player_name, COM_FileExists("maps/e2m1.bsp", NULL) && COM_FileExists("maps/e3m1.bsp", NULL) && COM_FileExists("maps/e4m1.bsp", NULL));
     length = strlen(state);
     for (i = 0; i < (sv.active ? svs.maxclients : cl.maxclients); i++) {
         const vec_t *position;

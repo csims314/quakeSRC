@@ -65,6 +65,7 @@ try {
     await browser(session, ['find', 'role', 'button', 'click', '--name', 'Launch Quake']);
     await waitFor(async () => await evaluate(session, 'window.quake?.ready && window.quake.state().signon === 4'), 'single-player launch', 60000);
     await browser(session, ['press', 'Escape']);
+    await command(session, 'menu_multiplayer');
     if (index === 1) await evaluate(session, `(() => {
       const Native = window.WebTransport;
       window.WebTransport = class {

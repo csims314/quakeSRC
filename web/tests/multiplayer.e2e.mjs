@@ -58,6 +58,7 @@ async function status() { return (await fetch(`${url}/api/multiplayer/status?mod
 async function world() { return (await fetch(`${url}/api/multiplayer/world?mode=${statusMode}`, { signal: AbortSignal.timeout(2000) })).json(); }
 async function click(session, name) { await browser(session, ['find', 'role', 'button', 'click', '--name', name]); }
 async function join(session) {
+  await command(session, 'menu_multiplayer');
   await waitFor(() => evaluate(session, "!document.getElementById('join').disabled"), 'multiplayer join control ready');
   const label = await evaluate(session, "document.getElementById('join').textContent");
   await click(session, label);
@@ -107,7 +108,6 @@ try {
     await browser(session, ['open', url]);
     const snapshot = await browser(session, ['snapshot', '-i']);
     assert.ok(JSON.stringify(snapshot).includes('Launch Quake'));
-    assert.ok(JSON.stringify(snapshot).includes('Join co-op'));
     assert.ok((await evaluate(session, "document.getElementById('multiplayer-summary').textContent")).includes('Original monsters'));
     assert.deepEqual((await game(session)).errors, []);
     if (index === 1) await evaluate(session, 'window.WebTransport = undefined; true');
@@ -210,6 +210,7 @@ try {
   passed('both players retain their sessions across a level transition to e1m2');
 
   for (const session of sessions) {
+    await command(session, 'menu_multiplayer');
     await browser(session, ['select', '#mode', 'deathmatch']);
     await join(session);
   }
@@ -220,6 +221,7 @@ try {
   passed('both players switch through the selector into the separate deathmatch room');
 
   for (let i = 0; i < 3; i++) {
+    await command(sessions[0], 'menu_multiplayer');
     await click(sessions[0], 'Leave multiplayer');
     await waitFor(async () => (await status()).connections === 1, 'departed player slot freed');
     const remaining = await game(sessions[1]);
