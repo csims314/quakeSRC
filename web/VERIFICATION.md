@@ -145,6 +145,26 @@ GitHub Actions passed all twelve unit/configuration tests and startup checks for
 
 ## Player character verification
 
+On October 7, 2026, the neck attachments were rebuilt as capped oval columns,
+independent of the photographic head silhouette. The eight-edge armor opening
+left by removing the original helmet is sealed with an insert that copies the
+body rim in every animation frame. The jaw is clipped at its contour and closes
+through a rounded underside; it no longer projects the face photo onto that
+underside. Heads retain their 150% scale.
+
+The character tests check both closed surfaces, consistent triangle winding,
+head and armor overlap at every neck-cap vertex, collar closure and monotonically
+narrowing neck radii across all 143 animation frames. Detached heads remain
+closed and retain the original ground offset. The browser review captures 72
+close-ups: eight directions at three elevations for each character, plus firing
+from four directions. Camera pitch is checked against the actual engine state;
+automatic pitch centering, damage tint and damage view kick are disabled for
+these inspection shots. Actual firing is verified through ammunition use. The
+mirror checks also cover facing the mirror at both initial spawn and respawn.
+Review images are under ignored `web/test-artifacts/characters/`, alongside the
+engine evidence. Production review uses `QUAKE_TEST_PUBLIC_URL` with the same
+character test and `QUAKE_TEST_RENDER_URL` with the rendering test.
+
 On October 6, 2026, `npm run test:characters` passed with two isolated Chromium sessions against the rebuilt engine on local ports 3108/4452. One player chose Nick on the launch screen; the other stayed the Ranger.
 
 | Flow | Result |

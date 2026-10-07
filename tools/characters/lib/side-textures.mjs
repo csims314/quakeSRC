@@ -37,7 +37,7 @@ function extendColors(image) {
   return { ...image, rgba };
 }
 
-export function createSideTextures({ frontGrid, sideGrid, silhouette, surfaceX, RINGS, NECK }, loadProfile, landmarks) {
+export function createSideTextures({ frontGrid, sideGrid, silhouette, surfaceX, RINGS }, loadProfile, landmarks) {
   const xMap = [...landmarks.x].sort((a, b) => a[0] - b[0]);
   const zMap = [...landmarks.z].sort((a, b) => a[0] - b[0]);
   return (front, images) => {
@@ -54,7 +54,7 @@ export function createSideTextures({ frontGrid, sideGrid, silhouette, surfaceX, 
       const rgba = Uint8Array.from(original[name].rgba);
       for (let t = 0; t < height; t++) {
         const z = zTop - (t + 0.5) * step;
-        const outline = silhouette(front, clamp(z, NECK?.start ?? RINGS.at(-1), RINGS[0]));
+        const outline = silhouette(front, clamp(z, RINGS.at(-1), RINGS[0]));
         for (let s = 0; s < width; s++) {
           const y = back ? frontGrid.yMax - (s + 0.5) * step : frontGrid.yMin + (s + 0.5) * step;
           const half = y < 0 ? -outline.left : outline.right;
@@ -72,7 +72,7 @@ export function createSideTextures({ frontGrid, sideGrid, silhouette, surfaceX, 
       const rgba = new Uint8Array(width * height * 4);
       for (let t = 0; t < height; t++) {
         const z = zTop - (t + 0.5) * step;
-        const outline = silhouette(front, clamp(z, NECK?.start ?? RINGS.at(-1), RINGS[0]));
+        const outline = silhouette(front, clamp(z, RINGS.at(-1), RINGS[0]));
         const half = sign < 0 ? -outline.left : outline.right;
         // Tables invert both curves once per row, instead of searching the
         // full mesh for every pixel. Include ears and beard relief in the fit.

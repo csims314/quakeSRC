@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { DEFAULT_CHARACTER, validateManifest, installCharacters } from '../dist/characters.js';
 import { readMdl, framePositions, FINE_STRIDE } from '../../tools/characters/lib/mdl.mjs';
-import { rigidFit, apply, sub, length } from '../../tools/characters/lib/math.mjs';
+import { rigidFit, apply, sub, length, centroid } from '../../tools/characters/lib/math.mjs';
+import { assertClosed, insideMesh, meshEdges } from './character-geometry.mjs';
 import { decodePng } from '../../tools/characters/lib/png.mjs';
 import { RECOLOURED, FULLBRIGHT } from '../../tools/characters/lib/palette.mjs';
 import { buildCharacters, sameFile } from '../../tools/characters/build.mjs';
@@ -73,67 +74,53 @@ for (const character of custom) {
     assert.ok([...skin.subarray(0, 296)].some(RECOLOURED));
   });
 
-  test(`${character.name}'s neck stays inside the collar through every animation`, () => {
+  test(`${character.name}'s solid neck overlaps the head and armor through every animation`, () => {
     const model = readMdl(readFileSync(new URL(`${character.id}/player.mdl`, root)));
     const stand = framePositions(model, model.frames[12]);
-    const base = model.stverts.flatMap((uv, i) => uv.s >= 296 && stand[i][2] < 15.8
-      && Math.abs(stand[i][1] + 1.3) < 2 && Math.abs(stand[i][0] - 0.4) < 2 ? [i] : []);
+    const width = decodePng(readFileSync(new URL(`../../tools/characters/${character.id}/art/front.png`, import.meta.url))).width;
+    const start = 296 + 4 * width;
+    const neck = model.stverts.flatMap((uv, i) => uv.s >= start && uv.s < start + width - 16 ? [i] : []);
+    assert.equal(neck.length, 202, 'the neck has eight oval rings and both caps');
+    const ids = new Set(neck), body = model.triangles.filter(t => t.v.every(i => model.stverts[i].s < 296)).map(t => t.v);
+    const head = model.triangles.filter(t => t.v.every(i => model.stverts[i].s >= 296 && !ids.has(i))).map(t => t.v);
+    const column = model.triangles.filter(t => t.v.every(i => ids.has(i))).map(t => t.v);
+    const base = neck.slice(0, 25).concat(neck.at(-2)), top = neck.slice(175, 200).concat(neck.at(-1));
     const collar = model.stverts.flatMap((uv, i) => uv.s < 296 && stand[i][2] > 15 && stand[i][2] < 17.5
       && Math.hypot(stand[i][0] - 0.4, stand[i][1] + 1.3) < 2.2 ? [i] : []);
-    assert.ok(base.length > 20, 'the neck must extend into the armor, below the jaw');
     assert.ok(collar.length >= 3);
     const unique = new Map(collar.map(i => [stand[i].map(v => v.toFixed(3)).join(','), i]));
     const anchors = [...unique.values()];
     for (const frame of model.frames) {
       const positions = framePositions(model, frame);
       const fit = rigidFit(anchors.map(i => stand[i]), anchors.map(i => positions[i]));
-      const error = Math.max(...base.map(i => length(sub(apply(fit, stand[i]), positions[i]))));
-      assert.ok(error < 0.02, `${frame.name} separates the neck base from the armor (${error.toFixed(3)} units)`);
+      const error = length(sub(apply(fit, stand[neck.at(-2)]), positions[neck.at(-2)]));
+      assert.ok(error < 0.004, `${frame.name} separates the base center from the armor`);
+      assertClosed(positions, column, `${frame.name} neck`);
+      assertClosed(positions, head, `${frame.name} head`);
+      assert.ok(base.every(i => insideMesh(positions[i], positions, body)), `${frame.name} exposes the bottom cap outside the armor`);
+      assert.ok(top.every(i => insideMesh(positions[i], positions, head)), `${frame.name} exposes the top cap outside the head`);
+      let previous = 0;
+      for (let row = 0; row < 8; row++) {
+        const ring = neck.slice(row * 25, row * 25 + 24).map(i => positions[i]), center = centroid(ring);
+        const radius = Math.max(...ring.map(p => length(sub(p, center))));
+        assert.ok(radius > previous && radius < 1.304, `${frame.name} neck bulges or splits at ring ${row}`);
+        previous = radius;
+      }
     }
-    assert.ok(Math.max(...base.map(i => stand[i][0])) < 0.6, 'the neck base must stay behind the front armor');
-    assert.ok(Math.max(...base.map(i => stand[i][1])) - Math.min(...base.map(i => stand[i][1])) < 1.7, 'the neck must taper inward inside the collar');
     const crown = Math.max(...stand.filter((_, i) => model.stverts[i].s >= 296).map(p => p[2]));
     assert.ok(crown > 29.7 && crown < 30.2, 'the enlarged head must retain its 150% height above the neck');
-    {
-      const width = decodePng(readFileSync(new URL(`../../tools/characters/${character.id}/art/front.png`, import.meta.url))).width;
-      const throat = model.stverts.flatMap((uv, i) => uv.s >= 296 + 4 * width && stand[i][0] > 0.3
-        && stand[i][2] < 17.1 && stand[i][2] > 15.5 && Math.abs(stand[i][1] + 1.3) < 0.2 ? [i] : []);
-      assert.ok(throat.length >= 4);
-      assert.ok(throat.every(i => model.frames[12].fine[i * FINE_STRIDE + 3] > 60), 'the neck front must face and light outward');
-    }
   });
 
-  test(`${character.name}'s jaw and neck form one closed surface with no split edges`, async () => {
-    const { buildHead, loadFront, NECK } = await import(`../../tools/characters/${character.id}/head.mjs`);
-    const mesh = buildHead(loadFront()), welded = new Map(), edges = new Map(), adjacent = new Map();
-    const ids = mesh.vertices.map(vertex => {
-      const key = vertex.position.map(v => v.toFixed(4)).join(',');
-      if (!welded.has(key)) welded.set(key, welded.size);
-      return welded.get(key);
-    });
-    for (const triangle of mesh.triangles) for (let k = 0; k < 3; k++) {
-      const [a, b] = [ids[triangle[k]], ids[triangle[(k + 1) % 3]]];
-      const key = [a, b].sort((x, y) => x - y).join('/');
-      edges.set(key, (edges.get(key) ?? 0) + 1);
-      if (!adjacent.has(a)) adjacent.set(a, new Set());
-      adjacent.get(a).add(b);
-    }
-    assert.ok([...edges.values()].every(count => count === 2), 'every edge must have both adjoining faces');
-    const reached = new Set(), pending = [0];
-    while (pending.length) {
-      const id = pending.pop(); if (reached.has(id)) continue;
-      reached.add(id); pending.push(...(adjacent.get(id) ?? []));
-    }
-    assert.equal(reached.size, welded.size, 'the neck cannot be a disconnected tube');
-    const rings = new Map();
-    for (const vertex of mesh.vertices) if (vertex.position[2] <= NECK.throat && vertex.position[2] >= NECK.base) {
-      const z = vertex.position[2]; if (!rings.has(z)) rings.set(z, []);
-      rings.get(z).push(vertex.position);
-    }
-    let last = Infinity;
-    for (const [z, points] of [...rings].sort((a, b) => b[0] - a[0])) {
-      const width = Math.max(...points.map(p => p[1])) - Math.min(...points.map(p => p[1]));
-      assert.ok(width < last, `neck widens toward the armor at ${z}`); last = width;
+  test(`${character.name}'s armor opening stays sealed through every animation`, () => {
+    const model = readMdl(readFileSync(new URL(`${character.id}/player.mdl`, root))), stand = framePositions(model, model.frames[12]);
+    const collar = new Set(model.stverts.flatMap((uv, i) => uv.s < 296 && stand[i][2] > 14 && stand[i][2] < 21
+      && Math.hypot(stand[i][0], stand[i][1] + 1.3) < 5 ? [i] : []));
+    assert.ok(collar.size >= 15, 'the body includes the original rim and its fitted insert');
+    const body = model.triangles.filter(t => t.v.every(i => model.stverts[i].s < 296)).map(t => t.v);
+    for (const frame of model.frames) {
+      const edges = meshEdges(framePositions(model, frame), body).filter(edge => edge.vertices.every(i => collar.has(i)));
+      assert.ok(edges.length >= 8);
+      assert.ok(edges.every(edge => edge.count === 2 && edge.winding === 0), `${frame.name} reopens the armor below the neck`);
     }
   });
 
@@ -159,6 +146,9 @@ for (const character of custom) {
     assert.equal(head.frames.length, 1);
     assert.equal(head.flags, 4);
     assert.ok(head.frames[0].fine, 'h_player.mdl must carry fine vertex data');
+    const positions = framePositions(head, head.frames[0]);
+    assertClosed(positions, head.triangles.map(t => t.v), 'detached head');
+    assert.ok(Math.abs(Math.min(...positions.map(p => p[2])) + 1.5) < 0.003, 'the detached head rests at the original ground offset');
     for (const face of FACES) {
       const image = decodePng(readFileSync(new URL(`${character.id}/${face}.png`, root)));
       assert.deepEqual([image.width, image.height], [96, 96], face);

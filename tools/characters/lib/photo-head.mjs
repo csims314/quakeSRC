@@ -1,8 +1,8 @@
 import { sub, cross, dot, centroid } from './math.mjs';
 
-// Silhouette-driven head mesh with configurable depth, crown and neck weights.
+// Photo-projected head mesh with separate depth, crown and jaw contours.
 export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown = 3.67, skinWeight,
-  frontSamples = 15, backSamples = 7, depthScale = 1, sidePanels = false, sideBottom = -Infinity, outlineAt, neck } = {}) {
+  frontSamples = 15, backSamples = 7, depthScale = 1, sidePanels = false, sideBottom = -Infinity, outlineAt, bottomOffset = 0.25, jaw } = {}) {
   const UNIT = 1 / photo.pixelsPerUnit;
   const [CX, CY] = photo.center;
   const toLocal = ([px, py]) => [(px - CX) * UNIT, (CY - py) * UNIT];
@@ -133,11 +133,7 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
 
   // Returns vertices with head-local positions, front/back UVs (in front-grid texels),
   // skinning weights toward the head (1) or chest (0), and triangles.
-  function buildHead(front, options = {}) {
-    const rings = options.rings ?? RINGS, bottom = options.bottom ?? rings.at(-1) - 0.25;
-    // Detached heads retain their photo silhouette. A live player's lower
-    // rings form one continuous jaw/neck surface, with no overlapping tube.
-    const useNeck = !!neck && !options.rings;
+  function buildHead(front, { rings = RINGS, bottom = rings.at(-1) - bottomOffset, jawCut = jaw } = {}) {
     const vertices = [], triangles = [];
     const uv = (y, z, side) => [
       side === 'front' ? (y - frontGrid.yMin) / frontGrid.step : (frontGrid.yMax - y) / frontGrid.step,
@@ -148,46 +144,30 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
       const beard = frontFacing && Math.abs(y) < 1.6;
       return beard ? 1 - 0.6 * smooth(-4.9, -6.4, z) : 1 - 0.65 * smooth(-2.8, -6.0, z);
     };
-    const add = (position, side, frontFacing, uvY = position[1], angle) => {
-      vertices.push({ position, uv: uv(uvY, position[2], side), side, angle, weight: weight(position[1], position[2], frontFacing) });
+    const add = (position, side, frontFacing, uvY = position[1]) => {
+      vertices.push({ position, uv: uv(uvY, position[2], side), side, weight: weight(position[1], position[2], frontFacing) });
       return vertices.length - 1;
     };
     const ringIndices = [];
     for (const z of rings) {
-      const lower = useNeck && z <= neck.start;
-      const sampleZ = lower ? neck.start : z;
-      const outline = silhouette(front, sampleZ);
-      const xs = sideDepth(sampleZ), xb = backDepth(sampleZ);
-      const shape = (x, y, angle) => {
-        if (!lower) return [x, y, z];
-        const t = Math.max(0, Math.min(1, (neck.throat - z) / (neck.throat - neck.base)));
-        const radius = neck.radius.map((v, k) => v * (1 - t) + neck.baseRadius[k] * t);
-        const center = neck.center.map((v, k) => v * (1 - t) + neck.baseCenter[k] * t);
-        const target = [center[0] + radius[0] * Math.cos(angle), center[1] + radius[1] * Math.sin(angle)];
-        const blend = smooth(0, 1, (neck.start - z) / (neck.start - neck.throat));
-        // Work in final head depth here; the common depth scaling below is
-        // undone for the designed neck's x coordinate.
-        return [(x * depthScale * (1 - blend) + target[0] * blend) / depthScale,
-          y * (1 - blend) + target[1] * blend, z];
-      };
       const fronts = [], backs = [];
       for (let k = 0; k < FRONT_SAMPLES; k++) {
         const v = -1 + (2 * k) / (FRONT_SAMPLES - 1), u = Math.sign(v) * Math.abs(v) ** 1.35;
-        const y = u < 0 ? -u * outline.left : u * outline.right;
+        const at = jawCut ? Math.max(z, jawCut.chin + (jawCut.side - jawCut.chin) * Math.abs(u) ** 1.5) : z;
+        const section = silhouette(front, at), y = u < 0 ? -u * section.left : u * section.right;
         // At the sides, look up the front texture just inside the photo's light edge,
         // where the back texture starts too, so the seam blends.
-        const uvY = Math.max(outline.left + EDGE_INSET, Math.min(outline.right - EDGE_INSET, y));
-        const angle = Math.asin(u);
-        fronts.push(add(shape(k === 0 || k === FRONT_SAMPLES - 1 ? xs : frontX(y, sampleZ, outline), y, angle), 'front', true, uvY, angle));
+        const uvY = Math.max(section.left + EDGE_INSET, Math.min(section.right - EDGE_INSET, y));
+        fronts.push(add([k === 0 || k === FRONT_SAMPLES - 1 ? sideDepth(at) : frontX(y, at, section), y, at], 'front', true, uvY));
       }
-      backs.push(add([...vertices[fronts.at(-1)].position], 'back', false, undefined, Math.PI / 2));
+      backs.push(add([...vertices[fronts.at(-1)].position], 'back', false));
       for (let j = 0; j < BACK_SAMPLES; j++) {
         const c = Math.cos((Math.PI * (j + 1)) / (BACK_SAMPLES + 1));
-        const y = c >= 0 ? c * outline.right : -c * outline.left;
-        const angle = Math.PI / 2 + Math.PI * (j + 1) / (BACK_SAMPLES + 1);
-        backs.push(add(shape(xs - (xs - xb) * superellipse(c, 2.2, 2.2), y, angle), 'back', false, undefined, angle));
+        const at = jawCut ? Math.max(z, jawCut.nape + (jawCut.side - jawCut.nape) * Math.abs(c) ** 1.5) : z;
+        const section = silhouette(front, at), y = c >= 0 ? c * section.right : -c * section.left;
+        backs.push(add([sideDepth(at) - (sideDepth(at) - backDepth(at)) * superellipse(c, 2.2, 2.2), y, at], 'back', false));
       }
-      backs.push(add([...vertices[fronts[0]].position], 'back', false, undefined, 3 * Math.PI / 2));
+      backs.push(add([...vertices[fronts[0]].position], 'back', false));
       ringIndices.push({ fronts, backs });
     }
     const quad = (a, b, c, d) => {
@@ -207,14 +187,46 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
       const ys = ring.fronts.map(i => vertices[i].position[1]);
       const y = (Math.min(...ys) + Math.max(...ys)) / 2;
       for (const strip of ['fronts', 'backs']) {
+        if (downward && jawCut) {
+          let upper = ring[strip];
+          const boundary = upper.map(i => vertices[i].position);
+          for (const amount of [0.25, 0.55, 0.8, 1]) {
+            const lower = boundary.map(([px, py, pz]) => {
+              const angle = Math.atan2(py - y, (px + 0.855) * depthScale);
+              const target = [-0.855 + Math.cos(angle) * 0.78, y + Math.sin(angle) * 0.75, z];
+              const position = [px, py, pz].map((v, k) => v * (1 - amount) + target[k] * amount);
+              position[2] -= 0.1 * Math.sin(amount * Math.PI);
+              const i = add(position, 'neck', false);
+              return i;
+            });
+            for (let k = 0; k + 1 < upper.length; k++) {
+              const first = [upper[k], upper[k + 1], lower[k + 1]], second = [upper[k], lower[k + 1], lower[k]];
+              first.underside = second.underside = true;
+              triangles.push(first, second);
+            }
+            upper = lower;
+          }
+          const pole = add([-0.855, y, z + 0.02], 'neck', false);
+          for (let k = 0; k + 1 < upper.length; k++) {
+            const triangle = [upper[k], upper[k + 1], pole]; triangle.underside = true; triangles.push(triangle);
+          }
+          continue;
+        }
         const pole = add([x, y, z], strip === 'fronts' ? 'front' : 'back', strip === 'fronts');
         const list = ring[strip];
         // Same winding as the strips, with one ring collapsed to the pole.
-        for (let k = 0; k + 1 < list.length; k++) triangles.push(downward ? [list[k], list[k + 1], pole] : [list[k + 1], list[k], pole]);
+        for (let k = 0; k + 1 < list.length; k++) {
+          const triangle = downward ? [list[k], list[k + 1], pole] : [list[k + 1], list[k], pole];
+          triangle.underside = downward && Boolean(jawCut);
+          triangles.push(triangle);
+        }
       }
     };
     cap(ringIndices[0], crown, -0.35, false);
-    cap(ringIndices.at(-1), bottom, -0.6, true);
+    // Clip each angular strip at the jaw contour, preserving the photo's
+    // actual coordinates. Collapsed triangles below it are discarded. The
+    // underside has a skin/beard material rather than a flattened face photo.
+    cap(ringIndices.at(-1), jawCut?.underside ?? bottom, -0.6, true);
     // Quake treats clockwise triangles as front faces: (b - a) x (c - a) must point inward.
     const axis = z => [-0.4, 0, z];
     let outward = 0;
@@ -236,25 +248,17 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
     const mapped = [], remap = new Map();
     const trianglesWithPanels = live.map(triangle => {
       const mid = centroid(triangle.map(i => vertices[i].position));
-      const outline = silhouette(front, Math.max(useNeck ? neck.start : rings.at(-1), Math.min(rings[0], mid[2])));
+      const outline = silhouette(front, Math.max(RINGS.at(-1), Math.min(RINGS[0], mid[2])));
       const width = mid[1] < 0 ? -outline.left : outline.right;
-      const panel = useNeck && mid[2] < neck.start ? 'neck'
-        : mid[2] >= sideBottom && Math.abs(mid[1]) / width > 0.72
+      const panel = triangle.underside ? 'neck' : mid[2] >= sideBottom && Math.abs(mid[1]) / width > 0.72
         ? (mid[1] < 0 ? 'left' : 'right') : vertices[triangle[0]].side;
-      const angles = triangle.map(i => vertices[i].angle ?? Math.PI);
-      const wraps = panel === 'neck' && Math.max(...angles) - Math.min(...angles) > Math.PI;
       return triangle.map(i => {
-        const vertex = vertices[i];
-        let angle = vertex.angle ?? Math.PI;
-        if (wraps && angle < Math.PI / 2) angle += 2 * Math.PI;
-        if (Math.abs(angle - Math.PI) < 1e-6 && angles.reduce((sum, v) => sum + v, 0) / 3 > Math.PI) angle = -Math.PI;
-        const backSeam = angle > Math.PI || angle <= -Math.PI ? -1 : 1;
-        const key = `${i}/${panel}/${panel === 'neck' ? backSeam : ''}`;
+        const key = `${i}/${panel}`;
         if (remap.has(key)) return remap.get(key);
-        const uv = panel === 'neck' ? [
-          (angle <= Math.PI ? angle + Math.PI : angle - Math.PI) / (2 * Math.PI) * (frontGrid.width - 2) + 1,
-          Math.max(0, Math.min(1, (neck.start - vertex.position[2]) / (neck.start - neck.base))) * (frontGrid.height - 2) + 1,
-        ] : panel === 'left' || panel === 'right' ? [
+        const vertex = vertices[i];
+        // One texel gives the underside a uniform material. A radial sweep
+        // across palette-dithered texels would turn into concentric stripes.
+        const uv = panel === 'neck' ? [frontGrid.width - 8, frontGrid.height / 2] : panel === 'left' || panel === 'right' ? [
           (vertex.position[0] - sideGrid.xMin) / (sideGrid.xMax - sideGrid.xMin) * sideGrid.width,
           (sideGrid.zTop - vertex.position[2]) / sideGrid.step,
         ] : vertex.uv;

@@ -180,6 +180,46 @@ try {
   }
   passed('both sides of Nick and Chris render with the profile textures');
 
+  // Inspect the actual collar join from every direction and from below. The
+  // neck fills the frame, rather than being a few pixels in a full-body view.
+  for (const [subject, viewer, character, sy, cy] of [[nick,ranger,'nick',200,140],[ranger,nick,'chris',140,200]]) {
+    const yaw = cy < sy ? 90 : 270;
+    await command(viewer, 'noclip 1\nfov 20\nr_drawviewmodel 0\nv_centerspeed 0\ngl_polyblend 0\nv_kicktime 0\nv_kickroll 0\nv_kickpitch 0');
+    for (const [height,label] of [[24,'level'],[8,'below'],[42,'above']]) {
+      const pitch=Math.atan2(height+22-42,60)*180/Math.PI;
+      await command(viewer, `setpos 480 ${cy} ${height} ${pitch} ${yaw} 0`);
+      await delay(250);
+      const camera = await state(viewer);
+      evidence[`${character}-${label}-camera`] = { origin: camera.origin, angles: camera.angles, requested: pitch };
+      // Server angles are quantized to 360 / 256 degrees.
+      assert.ok(Math.abs(camera.angles[0] - pitch) < 0.75, 'close-up camera must retain its requested elevation');
+      for (const angle of [0,45,90,135,180,225,270,315]) {
+        await command(subject, `setpos 480 ${sy} 24 0 ${angle} 0`);
+        await delay(200);
+        await shot(viewer, `${character}-neck-${label}-${angle}.png`);
+      }
+    }
+    await command(viewer, `setpos 480 ${cy} 24 4 ${yaw} 0`);
+    await command(subject, 'give s 100\nimpulse 2');
+    await delay(350);
+    const initialAmmo = (await state(subject)).ammo;
+    for (const angle of [0,90,180,270]) {
+      await command(subject, `setpos 480 ${sy} 24 0 ${angle} 0\n+attack`);
+      for (let frame = 0; frame < 3; frame++) {
+        await delay(120);
+        await shot(viewer, `${character}-neck-attack-${angle}-${frame}.png`);
+      }
+      await command(subject, '-attack');
+    }
+    const shotsFired = initialAmmo - (await state(subject)).ammo;
+    evidence[`${character}-firing-review`] = { shotsFired, angles: [0, 90, 180, 270], screenshots: 12 };
+    assert.ok(shotsFired >= 6, 'moving review must exercise the real firing animation');
+    assert.equal((await state(viewer)).health, 100, 'reviewing fire must leave the viewing player invulnerable');
+    await command(viewer, `setpos 480 ${cy} 24 4 ${yaw} 0\nfov 90\nnoclip 0\nr_drawviewmodel 1`);
+    await command(subject, `setpos 480 ${sy} 24 0 ${cy<sy?270:90} 0`);
+  }
+  passed('neck and collar close-ups cover the full turn, three elevations and firing animations');
+
   for (const scale of [1, 2, 3]) await checkHudPortrait(scale);
   for (const scale of [1, 2, 3]) await checkHudPortrait(scale, ranger, 'chris');
   passed('the complete portrait fits its HUD slot at every status-bar scale');

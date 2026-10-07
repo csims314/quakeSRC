@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { readMdl, quantizeFrames, writeMdl } from './mdl.mjs';
 import { createQuantizer, SKIN_INDICES, PICTURE_INDICES } from './palette.mjs';
-import { components, allFramePositions, track, blend, smoothNormals, steadyLightNormals, groupCentroid } from './compose.mjs';
-import { nearestLightNormal, lightNormals as lightNormalTable } from './math.mjs';
+import { components, allFramePositions, track, smoothNormals, steadyLightNormals, groupCentroid } from './compose.mjs';
+import { apply, nearestLightNormal, lightNormals as lightNormalTable } from './math.mjs';
 import { encodePng } from './png.mjs';
+import { createNeckMesh, createCollarInsert } from './neck-mesh.mjs';
 
 const vendor = new URL('../vendor/librequake/', import.meta.url);
 export const palette = readFileSync(new URL('palette.lmp', vendor));
@@ -11,7 +12,7 @@ export const palette = readFileSync(new URL('palette.lmp', vendor));
 // Attach a photo head to the shared animated body and build its HUD assets.
 export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
   frontTexture, backTexture, sideTextures, neckTexture, hudFaces, shrink, gibBottom = -5.2,
-  headScale = 1, neckTop = -4.5, neckBase = -6.4, neckOverlap = 0 }) {
+  headScale = 1, neckTop = -4.5, neck }) {
   // Frame names follow the player animations in id's QuakeC player.qc.
   const FRAME_NAMES = [
     ...['axrun', 'rockrun'].flatMap(n => [1, 2, 3, 4, 5, 6].map(i => n + i)),
@@ -55,6 +56,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
   }
 
   function stvert(vertex, x0) {
+    if (vertex.bodyUv) return vertex.bodyUv;
     const s = Math.max(0, Math.min(frontGrid.width - 1, Math.round(vertex.uv[0] - 0.5)));
     const t = Math.max(0, Math.min(frontGrid.height - 1, Math.round(vertex.uv[1] - 0.5)));
     return { onseam: 0, s: x0 + s + panels.indexOf(vertex.side) * frontGrid.width, t };
@@ -84,25 +86,32 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
     if (collar.length < 3) throw new Error('Could not find the armor collar');
     const headMotion = track(frames, STAND, helmet), collarMotion = track(frames, STAND, collar);
 
+    const column = createNeckMesh(neck, frontGrid), insert = createCollarInsert(body, pose, removed, palette);
+    const additions = [head, column, insert], extraVertices = [], extraTriangles = [];
+    for (const part of additions) {
+      const start = extraVertices.length;
+      extraVertices.push(...part.vertices);
+      extraTriangles.push(...part.triangles.map(t => t.map(i => i + start)));
+    }
+
     const keep = body.stverts.map((_, i) => i).filter(i => !removed.has(i));
     const remap = new Map(keep.map((old, i) => [old, i]));
     const offset = keep.length;
     const triangles = [
       ...body.triangles.filter(t => t.v.every(v => !removed.has(v))).map(t => ({ front: 1, v: t.v.map(v => remap.get(v)) })),
-      ...head.triangles.map(t => ({ front: 1, v: t.map(v => v + offset) })),
+      ...extraTriangles.map(t => ({ front: 1, v: t.map(v => v + offset) })),
     ];
-    const stverts = [...keep.map(i => body.stverts[i]), ...head.vertices.map(v => stvert(v, ATLAS.front))];
+    const stverts = [...keep.map(i => body.stverts[i]), ...extraVertices.map(v => stvert(v, ATLAS.front))];
     const placed = head.vertices.map(v => {
       const [x, y, z] = v.position;
-      const t = Math.max(0, Math.min(1, (z - neckBase) / (neckTop - neckBase)));
-      const scale = 1 + (headScale - 1) * t * t * (3 - 2 * t);
-      // Enlarge the whole head uniformly around the top of its neck. Below
-      // that joint, taper to the original collar size and retain its height.
-      const height = z >= neckTop ? neckTop + (z - neckTop) * headScale : z - neckOverlap * (1 - t);
-      return [x * scale + HEAD_ORIGIN[0], y * scale + HEAD_ORIGIN[1], height + HEAD_ORIGIN[2]];
+      return [x * headScale + HEAD_ORIGIN[0], y * headScale + HEAD_ORIGIN[1],
+        neckTop + (z - neckTop) * headScale + HEAD_ORIGIN[2]];
     });
-    const headFrames = frames.map((_, f) => placed.map((p, i) => blend(headMotion[f], collarMotion[f], p, head.vertices[i].weight)));
-    const headDirections = headFrames.map(positions => smoothNormals(positions, head.triangles));
+    const headFrames = frames.map((positions, f) => [
+      ...placed.map(p => apply(headMotion[f], p)),
+      ...column.posed(headMotion[f], collarMotion[f]), ...insert.posed(positions),
+    ]);
+    const headDirections = headFrames.map(positions => smoothNormals(positions, extraTriangles));
     const headNormals = steadyLightNormals(headDirections, FRAME_NAMES.map(name => name.replace(/\d+$/, '')));
     // The body keeps LibreQuake's light normals, so it is lit the same with or without fine data.
     const table = lightNormalTable();
@@ -126,7 +135,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
   // The detached head, enlarged like Quake's gib heads.
   function buildGibHead(atlas = headAtlas(createQuantizer(palette, SKIN_INDICES))) {
     const head = buildHead(loadFront(), { rings: RINGS.filter(z => z >= gibBottom + 0.25), bottom: gibBottom });
-    const scale = 1.35 * headScale, lift = -gibBottom * scale - 1.5;
+    const scale = 1.35 * headScale, lift = -Math.min(...head.vertices.map(v => v.position[2])) * scale - 1.5;
     const positions = head.vertices.map(v => [(v.position[0] - 0.2) * scale, v.position[1] * scale, v.position[2] * scale + lift]);
     const directions = smoothNormals(positions, head.triangles);
     const quantized = quantizeFrames([{ name: 'frame1', positions, normals: directions.map(nearestLightNormal), directions }]);

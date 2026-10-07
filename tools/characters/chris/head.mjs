@@ -12,16 +12,12 @@ const profile = {
   back: [-0.5, -1.2, -2, -2.7, -3.1, -3.4, -3.55, -3.6, -3.6, -3.5, -3.3, -3, -2.7, -2.2, -1.8, -1.6, -1.5, -1.45, -1.5, -1.6, -1.6],
 };
 export const NECK = {
-  start: -3.5, throat: -4.9, base: -7.3,
-  center: [-0.65, 0], baseCenter: [-0.65, 0],
-  radius: [0.9, 1.05], baseRadius: [0.5, 0.68],
+  top: [-0.6, -1.3, 22.6], bottom: [-0.6, -1.3, 15.4],
+  topRadius: [1.1, 1.3], bottomRadius: [0.92, 1.1],
 };
 const rings = [3.5, 3.2, 2.8, 2.35, 1.9, 1.45, 1.05, 0.7, 0.35, 0, -0.35, -0.7, -1, -1.3, -1.6,
-  -1.95, -2.3, -2.65, -3.05, -3.5, -3.8, -4.1, -4.4, -4.65, -4.9, -5.3, -5.7, -6.1, -6.5, -6.9, -7.3];
-const skinWeight = (_y, z) => {
-  const t = Math.max(0, Math.min(1, (NECK.start - z) / (NECK.start + 6.2)));
-  return 1 - t * t * (3 - 2 * t);
-};
+  -1.95, -2.3, -2.65, -3.05, -3.5, -3.8];
 export const { photo, toLocal, frontGrid, sideGrid, surfaceX, EDGE_INSET, loadFront, silhouette, RINGS, buildHead } =
-  createPhotoHead(spec, front, { profile, rings, crown: 3.7, skinWeight, frontSamples: 25, backSamples: 11,
-    depthScale: 0.78, sidePanels: true, neck: NECK });
+  createPhotoHead(spec, front, { profile, rings, crown: 3.7, skinWeight: () => 1, frontSamples: 25, backSamples: 11,
+    depthScale: 0.78, sidePanels: true, bottomOffset: 0.06,
+    jaw: { chin: -3.65, side: -2.65, nape: -2.1, underside: -3.15 } });
