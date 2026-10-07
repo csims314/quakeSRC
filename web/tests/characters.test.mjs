@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { DEFAULT_CHARACTER, validateManifest, installCharacters } from '../dist/characters.js';
 import { readMdl, framePositions, FINE_STRIDE } from '../../tools/characters/lib/mdl.mjs';
-import { rigidFit, apply, sub, length, centroid } from '../../tools/characters/lib/math.mjs';
+import { rigidFit, apply, sub, length, centroid, lerp } from '../../tools/characters/lib/math.mjs';
 import { assertClosed, insideMesh, meshEdges } from './character-geometry.mjs';
 import { decodePng } from '../../tools/characters/lib/png.mjs';
 import { RECOLOURED, FULLBRIGHT } from '../../tools/characters/lib/palette.mjs';
@@ -93,8 +93,8 @@ for (const character of custom) {
     for (const frame of model.frames) {
       const positions = framePositions(model, frame);
       const fit = rigidFit(anchors.map(i => stand[i]), anchors.map(i => positions[i]));
-      const error = length(sub(apply(fit, stand[neck.at(-2)]), positions[neck.at(-2)]));
-      assert.ok(error < 0.004, `${frame.name} separates the base center from the armor`);
+      const error = Math.max(...base.map(i => length(sub(apply(fit, stand[i]), positions[i]))));
+      assert.ok(error < 0.004, `${frame.name} separates the base from the armor`);
       assertClosed(positions, column, `${frame.name} neck`);
       assertClosed(positions, head, `${frame.name} head`);
       assert.ok(base.every(i => insideMesh(positions[i], positions, body)), `${frame.name} exposes the bottom cap outside the armor`);
@@ -105,6 +105,15 @@ for (const character of custom) {
         const radius = Math.max(...ring.map(p => length(sub(p, center))));
         assert.ok(radius > previous && radius < 1.304, `${frame.name} neck bulges or splits at ring ${row}`);
         previous = radius;
+      }
+    }
+    const poses = model.frames.map(frame => framePositions(model, frame));
+    for (let f = 1; f < model.frames.length; f++) {
+      if (model.frames[f].name.replace(/\d+$/, '') !== model.frames[f - 1].name.replace(/\d+$/, '')) continue;
+      for (const t of [0.25, 0.5, 0.75]) {
+        const positions = poses[f].map((p, i) => lerp(poses[f - 1][i], p, t));
+        assert.ok(base.every(i => insideMesh(positions[i], positions, body)), `${model.frames[f].name} ${t} exposes the interpolated base`);
+        assert.ok(top.every(i => insideMesh(positions[i], positions, head)), `${model.frames[f].name} ${t} exposes the interpolated top`);
       }
     }
     const crown = Math.max(...stand.filter((_, i) => model.stverts[i].s >= 296).map(p => p[2]));

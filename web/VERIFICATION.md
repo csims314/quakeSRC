@@ -154,8 +154,12 @@ underside. Heads retain their 150% scale.
 
 The character tests check both closed surfaces, consistent triangle winding,
 head and armor overlap at every neck-cap vertex, collar closure and monotonically
-narrowing neck radii across all 143 animation frames. Detached heads remain
-closed and retain the original ground offset. The browser review captures 72
+narrowing neck radii across all 143 animation frames. Neck overlaps are also
+checked at quarter, half and three-quarter interpolation between consecutive
+frames of each animation. The end rings follow
+the exact rigid head and collar rotations so these interpolations keep them
+embedded in their attachments. Detached heads remain closed and retain the
+original ground offset. The browser review captures 72
 close-ups: eight directions at three elevations for each character, plus firing
 from four directions. Camera pitch is checked against the actual engine state;
 automatic pitch centering, damage tint and damage view kick are disabled for

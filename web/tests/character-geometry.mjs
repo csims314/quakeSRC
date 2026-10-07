@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cross, dot, sub, normalize } from '../../tools/characters/lib/math.mjs';
+import { cross, dot, sub, normalize, length } from '../../tools/characters/lib/math.mjs';
 
 export function meshEdges(positions, triangles) {
   const key = p => p.map(v => v.toFixed(4)).join(',');
@@ -37,5 +37,16 @@ export function insideMesh(point, positions, triangles) {
     if (distance > 1e-5) hits.push(distance);
   }
   hits.sort((a, b) => a - b);
-  return hits.filter((t, i) => !i || t - hits[i - 1] > 1e-4).length % 2 === 1;
+  if (hits.filter((t, i) => !i || t - hits[i - 1] > 1e-4).length % 2 === 1) return true;
+  // A ray near the clipped jaw can hit several almost-coincident seams;
+  // merging those distances can lose a real crossing. Resolve that case
+  // with the solid-angle winding number of the consistently closed mesh.
+  const vectors = positions.map(p => sub(p, point)), lengths = vectors.map(length);
+  let winding = 0;
+  for (const [i, j, k] of triangles) {
+    const [a, b, c] = [vectors[i], vectors[j], vectors[k]], [la, lb, lc] = [lengths[i], lengths[j], lengths[k]];
+    const numerator = a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+    winding += 2 * Math.atan2(numerator, la * lb * lc + dot(a, b) * lc + dot(b, c) * la + dot(c, a) * lb);
+  }
+  return Math.abs(winding) > Math.PI * 2;
 }

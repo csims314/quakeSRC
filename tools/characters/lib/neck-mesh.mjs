@@ -24,11 +24,16 @@ export function createNeckMesh(spec, grid) {
     for(let i=0;i<slices;i++) triangles.push(top?[rings[row][i+1],rings[row][i],pole]:[rings[row][i],rings[row][i+1],pole]);
   }
   const rotationX = motion => [motion.rotation[0], motion.rotation[3], motion.rotation[6]];
+  const rotationZ = motion => [motion.rotation[2], motion.rotation[5], motion.rotation[8]];
   const posed = (headMotion, collarMotion) => {
-    const top=apply(headMotion,spec.top),bottom=apply(collarMotion,spec.bottom),axis=normalize(sub(top,bottom));
+    const top=apply(headMotion,spec.top),bottom=apply(collarMotion,spec.bottom);
     return vertices.map(vertex => {
       const {t}=vertex,center=lerp(bottom,top,t);
       if(vertex.pole)return center;
+      // The end rings follow their attachment's entire rigid transform.
+      // This keeps them inside the same affine head/torso deformation when
+      // the engine interpolates between animation frames, including deaths.
+      const axis=normalize(lerp(rotationZ(collarMotion),rotationZ(headMotion),t));
       const direction=lerp(rotationX(collarMotion),rotationX(headMotion),t);
       let x=normalize(sub(direction,axis.map(v=>v*dot(direction,axis))));
       if(Math.hypot(...cross(x,axis))<0.1)x=normalize(cross([0,1,0],axis));
