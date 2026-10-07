@@ -1061,6 +1061,20 @@ void ED_LoadFromFile (const char *data)
 		}
 
 		classname = PR_GetString (ent->v.classname);
+#ifdef __EMSCRIPTEN__
+		// Face the live mirror from the stock start room's player spawns.
+		// Adjust the spawn entity so joins and respawns receive the same
+		// authoritative angle, rather than turning a client after sign-on.
+		if (!strcmp (sv.name, "start") &&
+			(!strcmp (classname, "info_player_start") || !strcmp (classname, "info_player_coop")) &&
+			ent->v.origin[0] >= 448 && ent->v.origin[0] <= 640 &&
+			ent->v.origin[1] > 194 && ent->v.origin[1] <= 400)
+		{
+			ent->v.angles[0] = 0;
+			ent->v.angles[1] = 270;
+			ent->v.angles[2] = 0;
+		}
+#endif
 		if (sv.nomonsters && !Q_strncmp (classname, "monster_", 8))
 		{
 			ED_Free (ent);

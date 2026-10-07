@@ -37,7 +37,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
     const front = loadFront();
     const images = { front: frontTexture(front), back: backTexture(front) };
     if (sideTextures) Object.assign(images, sideTextures(front, images));
-    if (neckTexture) images.neck = neckTexture(front);
+    if (neckTexture) images.neck = neckTexture(front, images);
     return Object.fromEntries(panels.map(panel => [panel, region(images[panel])]));
   }
 
@@ -72,7 +72,17 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
     const chest = parts.filter(ids => ids.length >= 150).flat()
       .filter(i => !removed.has(i) && pose[i][2] > 12 && pose[i][2] < 19.8 && Math.abs(pose[i][1] - HEAD_ORIGIN[1]) < 4.5 && Math.abs(pose[i][0]) < 5);
     if (helmet.length < 40 || chest.length < 20) throw new Error('Could not find the helmet and chest in the body model');
-    const headMotion = track(frames, STAND, helmet), chestMotion = track(frames, STAND, chest);
+    // Fit the attachment to the armor's own collar, which moves independently
+    // of the broader chest during running and attacks.
+    const unique = new Set();
+    const collar = pose.flatMap((p, i) => {
+      if (removed.has(i) || p[2] < 15 || p[2] > 17.5 || Math.hypot(p[0] - HEAD_ORIGIN[0], p[1] - HEAD_ORIGIN[1]) > 2.2) return [];
+      const key = p.map(v => v.toFixed(4)).join(',');
+      if (unique.has(key)) return [];
+      unique.add(key); return [i];
+    });
+    if (collar.length < 3) throw new Error('Could not find the armor collar');
+    const headMotion = track(frames, STAND, helmet), collarMotion = track(frames, STAND, collar);
 
     const keep = body.stverts.map((_, i) => i).filter(i => !removed.has(i));
     const remap = new Map(keep.map((old, i) => [old, i]));
@@ -91,7 +101,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
       const height = z >= neckTop ? neckTop + (z - neckTop) * headScale : z - neckOverlap * (1 - t);
       return [x * scale + HEAD_ORIGIN[0], y * scale + HEAD_ORIGIN[1], height + HEAD_ORIGIN[2]];
     });
-    const headFrames = frames.map((_, f) => placed.map((p, i) => blend(headMotion[f], chestMotion[f], p, head.vertices[i].weight)));
+    const headFrames = frames.map((_, f) => placed.map((p, i) => blend(headMotion[f], collarMotion[f], p, head.vertices[i].weight)));
     const headDirections = headFrames.map(positions => smoothNormals(positions, head.triangles));
     const headNormals = steadyLightNormals(headDirections, FRAME_NAMES.map(name => name.replace(/\d+$/, '')));
     // The body keeps LibreQuake's light normals, so it is lit the same with or without fine data.

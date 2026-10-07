@@ -58,8 +58,9 @@ BSP geometry. Moving doors, actors and projectile lights do not cast volumetric
 shadows in this version. This is a renderer effect and adds no network messages.
 
 The stock `start` profile covers the spawn, difficulty hall and its approach.
-The mirror is 95.5 units behind the spawn, with glass starting 8 units above
-the floor so the full character is visible when you turn around. It is a
+The mirror is 95.5 units from the spawn, with glass starting 8 units above
+the floor. Stock start-room player spawns face it at yaw 270, including
+respawns and co-op starts, so the selected character is visible immediately. It is a
 client-side decoration, with one reflection bounce.
 
 ## Verification and implementation notes

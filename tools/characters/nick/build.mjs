@@ -8,5 +8,5 @@ import { neckTexture } from './neck.mjs';
 export { palette } from '../lib/character.mjs';
 export const { buildPlayer, buildGibHead, buildFiles: buildNick } = createCharacterBuilder({
   buildHead, loadFront, frontGrid, RINGS, frontTexture, backTexture, sideTextures, neckTexture, hudFaces, shrink,
-  headScale: 1.5, neckTop: -4.5, neckBase: -6.4, neckOverlap: 0.65,
+  headScale: 1.5, neckTop: -4.5, neckBase: -7.3,
 });

@@ -97,8 +97,9 @@ The console command is `character nick` or `character ranger`. Characters work w
 
 ## Engine and build
 
-The browser renderer includes a live planar mirror directly behind the stock
-`start` spawn: turn around to see Ranger from head to feet. Depth-aware volumetric
+The browser renderer includes a live planar mirror in the stock
+`start` room. Players spawn and respawn facing it, with their selected character
+visible from head to feet. Depth-aware volumetric
 fog with BSP-shadowed static lighting is available but disabled for now. See
 [RENDERING.md](RENDERING.md) for the plans,
 quality controls, map authoring keys and current lighting limits. Verify them

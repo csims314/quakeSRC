@@ -1,5 +1,6 @@
 // Software rasterizer for reviewing models without a GPU: textured, lit, z-buffered.
-import { sub, cross, dot, normalize, vertexNormals } from './math.mjs';
+import { sub, cross, dot, normalize } from './math.mjs';
+import { smoothNormals } from './compose.mjs';
 
 export function createImage(width, height, background = [24, 22, 20, 255]) {
   const rgba = new Uint8Array(width * height * 4);
@@ -32,7 +33,7 @@ function project(cam, image, p) {
 export function drawMesh(image, mesh, cam, { light = [0.4, -0.5, 0.75], ambient = 0.45, cull = true } = {}) {
   const lightDir = normalize(light);
   // Quake winding makes (b - a) x (c - a) point inward; flip for lighting.
-  const normals = vertexNormals(mesh.positions, mesh.triangles.map(t => t.v)).map(n => n.map(v => -v));
+  const normals = smoothNormals(mesh.positions, mesh.triangles.map(t => t.v));
   const screen = mesh.positions.map(p => project(cam, image, p));
   const { texture } = mesh;
   for (const tri of mesh.triangles) {
