@@ -13,13 +13,15 @@ Double-click `launch-web.cmd` in the project root. It starts a server on `http:/
 - Save and load through Quake's original Single Player menu or console commands such as `save slot1` / `load slot1`.
 - Saves and configuration are stored in IndexedDB for this browser and origin. Browser storage can be cleared; use **Export saves** to keep a portable backup. **Import saves** accepts the exported JSON or an individual `.sav` file.
 
-Mobile play does not require the mouse Pointer Lock API. Single player also
-works without WebTransport; multiplayer controls are disabled with an explanation
-when that API is missing. iOS browsers gained WebTransport with iOS 26.4
+Mobile play does not require the mouse Pointer Lock API. Multiplayer prefers
+WebTransport and automatically uses a WebSocket connection when that API is
+missing, its handshake/stream creation stalls, or Quake sign-on fails. iOS
+browsers gained WebTransport with iOS 26.4
 ([Safari release notes](https://developer.apple.com/documentation/safari-release-notes/safari-26_4-release-notes)).
 `npm run test:touch` removes pointer-lock/fullscreen APIs before launch and
 checks real touch movement, aiming, firing, menus, fullscreen fallback, co-op,
-and portrait single-player launch without WebTransport. It emulates mobile
+and portrait co-op with a native WebTransport peer when WebTransport is missing.
+It emulates mobile
 capabilities in Chromium; it does not replace testing on a physical iPhone.
 Set `QUAKE_TEST_PUBLIC_URL` to run this same touch flow against a deployed server.
 
@@ -52,9 +54,25 @@ Set `QUAKE_MULTIPLAYER_SKILL` before starting the server to choose `0` (Easy), `
 
 The server runs the same QuakeSpasm C engine under Node 20 or newer. Browser clients connect directly over HTTP/3 WebTransport: unreliable datagrams carry movement and world updates, and a reliable bidirectional stream carries sign-on and reliable game messages. There is no Quake UDP relay or legacy UDP driver in this WebAssembly build. Original protocol 666, QuakeC, physics, combat, and server simulation remain in the engine.
 
+The WebSocket compatibility path shares the same engine instances, player slots,
+monsters, room rules, and network queues. It uses the page's trusted HTTPS/TCP
+connection at `/multiplayer/coop` or `/multiplayer/deathmatch`. Binary messages
+carry a type byte; reliable payloads follow it directly, while game updates also
+carry their four-byte sequence number. Outgoing stale updates are dropped before
+send when congested; incoming queues remain bounded. Unlike QUIC datagrams, bytes
+already sent over TCP wait for retransmission, so this fallback can have more
+latency under packet loss. It is not claimed to match WebTransport's latency.
+
+The pinned HTTP/3 dependency has an open [Safari stream-credit interoperability
+issue](https://github.com/fails-components/webtransport/issues/490). Native
+connection attempts have a real rejecting deadline rather than relying on
+`session.close()` to settle a hung stream promise. The launcher retries sign-on
+once over WebSocket, closes failed connections, and keeps connection progress
+and errors visible outside the collapsed details panel.
+
 Default local addresses are `http://127.0.0.1:3000` for the page and `https://127.0.0.1:4433/quake` for WebTransport. Both bind to loopback, so the local launcher hosts players on this computer. Public co-op is hosted at [quake.34.10.23.32.sslip.io](https://quake.34.10.23.32.sslip.io) with WebTransport on UDP 4433; see [the deployment instructions](../deploy/README.md). The optional server field accepts another compatible WebTransport server with a trusted HTTPS certificate.
 
-The launcher installs missing npm dependencies and checks the official native HTTP/3 prebuild. Local EC certificates are pinned by SHA-256, valid for twelve days, and renewed while the server runs. They are stored in ignored `web/.local/`. Browser certificate checks stay enabled; the launcher does not install a root CA or change browser security settings. Use a current browser with native WebTransport support; no WebSocket fallback is used.
+The launcher installs missing npm dependencies and checks the official native HTTP/3 prebuild. Local EC certificates are pinned by SHA-256, valid for twelve days, and renewed while the server runs. They are stored in ignored `web/.local/`. Browser certificate checks stay enabled; the launcher does not install a root CA or change browser security settings. The compatibility connection uses the page's TLS certificate and needs no certificate hash or additional port.
 
 Both rooms run automatically. To change deathmatch's arena and limits before starting:
 

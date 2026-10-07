@@ -130,6 +130,7 @@ const handleRequest = async (req, res) => {
 const server = editorSettings.lan
   ? createHttpsServer({ cert: await readFile(options.tlsCert), key: await readFile(options.tlsKey) }, handleRequest)
   : createServer(handleRequest);
+multiplayer?.attachWebSockets(server);
 server.listen(port, editorSettings.lan ? '0.0.0.0' : options.webHost, () => console.log(`Quake WebGL: ${options.publicOrigin}`));
 server.on('error', error => { console.error(error.message); multiplayer?.stop(); process.exit(1); });
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => {

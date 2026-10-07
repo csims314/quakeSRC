@@ -15,11 +15,11 @@ const requestedMode = new URL(location.href).searchParams.get('mode');
 const explicitMode = ['coop', 'deathmatch'].includes(requestedMode);
 $('mode').value = explicitMode ? requestedMode : 'coop';
 const selectedMode = () => $('mode').value;
-const multiplayerSupported = typeof globalThis.WebTransport === 'function';
+const multiplayerSupported = typeof globalThis.WebTransport === 'function' || typeof globalThis.WebSocket === 'function';
 function updateJoinButton() {
   $('join').disabled = !multiplayerSupported || !ready || joining || leaving || activeMode === selectedMode();
 }
-if (!multiplayerSupported) $('network-status').textContent = 'Single player is available. This browser needs WebTransport support for multiplayer.';
+if (!multiplayerSupported) $('network-status').textContent = 'Single player is available. This browser has no supported multiplayer connection.';
 async function waitForGame(predicate) {
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
@@ -30,7 +30,7 @@ async function waitForGame(predicate) {
 }
 function showServerInfo(config) {
   if (!multiplayerSupported) {
-    $('multiplayer-summary').textContent = 'Single player available · This browser needs WebTransport support for multiplayer.';
+    $('multiplayer-summary').textContent = 'Single player available · This browser has no supported multiplayer connection.';
     return;
   }
   if (!config.available) {
@@ -116,7 +116,7 @@ renderCharacters();
 $('character').addEventListener('change', event => chooseCharacter(event.target.value));
 const transport = createQuakeTransport(event => {
   if (event.state === 'closed' && transport.snapshot().some(connection => connection.open)) return;
-  $('network-status').textContent = event.state === 'ready' ? 'WebTransport connected. Joining the game…' : `Disconnected: ${event.reason}`;
+  $('network-status').textContent = event.state === 'ready' ? 'Connected. Joining the game…' : `Disconnected: ${event.reason}`;
   if (event.state === 'closed') {
     if (!joining) { activeMode = null; $('pause').disabled = !ready; }
     updateJoinButton();
@@ -361,23 +361,35 @@ $('join').addEventListener('click', async () => {
     const entered = $('server-url').value.trim();
     if (!entered && !config.available) throw new Error(config.error || 'The local multiplayer server is unavailable.');
     const matched = entered && [config, ...(config.rooms || [])].find(room => new URL(entered).href === new URL(room.url).href);
-    const target = entered ? { url: entered, certificateHash: matched?.certificateHash } : config;
-    command('disconnect');
-    transport.closeAll();
-    // Commands run in the next engine frame. Finish releasing the previous
-    // connection before opening a new session, especially after server loss.
-    await waitForGame(state => !state.connected && state.signon === 0);
-    const connectionId = await connectQuake(transport, target);
-    command('stopdemo\nconnect webtransport\nmenu_main\ntogglemenu');
-    await waitForGame(state => state.connectionId === connectionId && state.signon === 4 && !state.serverActive);
+    const target = entered ? { ...matched, url: entered } : config;
+    const joinGame = async forceWebSocket => {
+      command('disconnect'); transport.closeAll();
+      // Commands run in the next engine frame. Release the previous connection
+      // before opening another session, including after a failed sign-on.
+      await waitForGame(state => !state.connected && state.signon === 0);
+    const connectionId = await connectQuake(transport, target, { forceWebSocket,
+        onProgress: text => { $('network-status').textContent = text; },
+        onFallback: reason => log(`Using compatible connection: ${reason}`) });
+      command('stopdemo\nconnect webtransport\nmenu_main\ntogglemenu');
+      await waitForGame(state => state.connectionId === connectionId && state.signon === 4 && !state.serverActive);
+    };
+    try { await joinGame(false); }
+    catch (error) {
+      // Some transports establish a session but stall during Quake sign-on.
+      // Retry once over HTTPS, without leaking the half-connected player.
+      if (!target.websocketUrl || !transport.snapshot().some(connection => connection.transport === 'webtransport')) throw error;
+      log(`WebTransport sign-on failed: ${error.message}`);
+      await joinGame(true);
+    }
     releaseMouse();
     $('leave').hidden = false;
-    $('network-status').textContent = `Connected to ${target.url}. Click the game to play.`;
+    $('network-status').textContent = `Connected to ${entered ? 'multiplayer' : config.mode === 'coop' ? 'co-op' : 'deathmatch'}. ${touch.enabled ? 'Tap' : 'Click'} the game to play.`;
     $('save-status').textContent = entered ? 'MULTIPLAYER' : config.mode === 'coop' ? 'CO-OP / ORIGINAL MONSTERS' : 'DEATHMATCH';
     activeMode = entered ? 'custom' : config.id || selectedMode();
     pausedByToolbar = false; $('pause').textContent = 'Pause';
     $('pause').disabled = !entered && config.mode === 'deathmatch';
   } catch (error) {
+    transport.closeAll();
     $('network-status').textContent = error.message;
     activeMode = null; command('map start');
     log(error.message);

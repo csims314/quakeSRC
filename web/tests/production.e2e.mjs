@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-// Tests a running public server through normal HTTPS and WebTransport, without
+// Tests a running public server through normal HTTPS, WebTransport and its
+// compatibility fallback, without
 // opening server diagnostics, changing its configuration, or bypassing TLS.
 const url = process.env.QUAKE_TEST_PUBLIC_URL;
 if (!url || new URL(url).protocol !== 'https:') throw new Error('Set QUAKE_TEST_PUBLIC_URL to the public HTTPS origin');
@@ -56,7 +57,7 @@ try {
   assert.equal(config.available, true); assert.equal(config.mode, 'coop'); assert.equal(config.monsters, true);
   assert.equal(config.map, 'e1m1'); assert.equal(new URL(config.url).hostname, new URL(url).hostname);
   assert.equal(new URL(config.url).protocol, 'https:'); assert.equal(config.maxPlayers, 8);
-  for (const session of sessions) {
+  for (const [index, session] of sessions.entries()) {
     await browser(session, ['open', url]);
     const snapshot = await browser(session, ['snapshot', '-i']);
     assert.ok(JSON.stringify(snapshot).includes('Launch Quake'));
@@ -64,15 +65,27 @@ try {
     await browser(session, ['find', 'role', 'button', 'click', '--name', 'Launch Quake']);
     await waitFor(async () => await evaluate(session, 'window.quake?.ready && window.quake.state().signon === 4'), 'single-player launch', 60000);
     await browser(session, ['press', 'Escape']);
+    if (index === 1) await evaluate(session, `(() => {
+      const Native = window.WebTransport;
+      window.WebTransport = class {
+        constructor(...args) {
+          const session = new Native(...args);
+          Object.defineProperty(session, 'createBidirectionalStream', { value: () => new Promise(() => {}) });
+          return session;
+        }
+      };
+      return true;
+    })()`);
     await browser(session, ['snapshot', '-i']);
     await browser(session, ['find', 'role', 'button', 'click', '--name', 'Join co-op']);
     await waitFor(async () => {
       const result = await game(session);
       return result.state?.signon === 4 && !result.state.serverActive && result.state.map === 'maps/e1m1.bsp' && result.network.some(c => c.open) ? result : false;
-    }, 'public WebTransport join');
+    }, 'public multiplayer join, including a stalled native stream');
+    assert.equal((await game(session)).network.find(connection => connection.open).transport, index === 1 ? 'websocket' : 'webtransport');
     assert.deepEqual((await game(session)).errors, []);
   }
-  passed('two browsers launch and join the public co-op server with valid HTTPS');
+  passed('native WebTransport and a hung-stream fallback join the same public co-op room with valid HTTPS');
   await command(sessions[0], 'name PublicAlpha\nsay Public WebTransport chat verified');
   await command(sessions[1], 'name PublicBeta');
   await waitFor(async () => (await game(sessions[1])).log.some(line => line.includes('Public WebTransport chat verified')), 'reliable chat');
@@ -90,7 +103,7 @@ try {
     const peer = (await game(sessions[1])).state.players.find(p => p.slot === playerSlot);
     return peer && Math.hypot(...peer.origin.map((n, i) => n - moved.origin[i])) < 20;
   }, 'movement replicated to the other browser');
-  passed('reliable chat and player movement cross the public WebTransport connection');
+  passed('reliable chat and player movement cross the public WebTransport/WebSocket connection');
   const healthBefore = (await game(sessions[1])).state.health;
   const killsBefore = (await game(sessions[1])).state.killedMonsters;
   await command(sessions[1], 'setpos 96 608 24 0 198.435 0\nnoclip 0');

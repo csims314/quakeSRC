@@ -141,10 +141,12 @@ try {
   for (const [index, session] of sessions.entries()) {
     await browser(session, ['open', `${url}/?mode=${index === 2 ? 'coop' : 'deathmatch'}`]);
     await browser(session, ['snapshot', '-i']);
+    if (index === 1) await evaluate(session, 'window.WebTransport = undefined; true');
     await browser(session, ['find', 'role', 'button', 'click', '--name', 'Launch Quake']);
     await waitFor(async () => await evaluate(session, 'window.quake?.ready && window.quake.state().signon===4'), 'single-player launch', 60000);
     await browser(session, ['press', 'Escape']);
     await selectRoom(session, index === 2 ? 'coop' : 'deathmatch');
+    assert.equal((await game(session)).network.find(connection => connection.open).transport, index === 1 ? 'websocket' : 'webtransport');
     if (index === 0 && !publicUrl) {
       const fresh = await (await fetch(`${url}/api/multiplayer/status?mode=deathmatch`)).json();
       assert.ok(fresh.serverTime < 5, 'first player starts a fresh round after the empty server has been idle');

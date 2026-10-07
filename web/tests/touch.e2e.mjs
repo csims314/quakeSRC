@@ -289,15 +289,47 @@ try {
   await olderPhone.evaluate("document.getElementById('start').scrollIntoView({block:'center'})");
   await tap(olderPhone, '#start');
   await waitFor(async () => (await game(olderPhone))?.signon === 4, 'single player without WebTransport', 60000);
-  assert.equal(await olderPhone.evaluate("document.getElementById('join').disabled"), true);
-  assert.match(await olderPhone.evaluate("document.getElementById('network-status').textContent"), /Single player is available/);
+  assert.equal(await olderPhone.evaluate("document.getElementById('join').disabled"), false);
   await olderPhone.evaluate('window.scrollTo(0, 0)');
   await tap(olderPhone, '#fullscreen');
   await waitFor(() => olderPhone.evaluate("document.getElementById('stage').classList.contains('expanded')"), 'portrait fullscreen fallback');
   await screenshot(olderPhone, 'touch-portrait.png');
   assert.equal(await olderPhone.evaluate("Math.round(document.getElementById('stage').getBoundingClientRect().height)"), 844);
   assert.deepEqual(await olderPhone.evaluate('window.__quakeErrors'), []);
-  passed('portrait phones can launch single player when WebTransport is unavailable');
+  await tap(olderPhone, '#view-exit');
+  await olderPhone.evaluate(`(() => {
+    window.__nativeSocket = window.WebSocket;
+    window.WebSocket = class {
+      constructor(url, protocol) {
+        const missing = new URL(url); missing.pathname = '/multiplayer/missing';
+        return new window.__nativeSocket(missing.href, protocol);
+      }
+    };
+    window.scrollTo(0, 0); return true;
+  })()`);
+  await tap(olderPhone, '#join');
+  await waitFor(() => olderPhone.evaluate("!document.getElementById('join').disabled && document.getElementById('network-status').textContent.includes('Could not reach')"), 'failed phone join returns a visible error and working retry button');
+  await waitFor(async () => { const state = await game(olderPhone); return state?.serverActive && state.map === 'start' && state.signon === 4; }, 'failed phone join restores a playable local game');
+  await olderPhone.evaluate('window.WebSocket = window.__nativeSocket; delete window.__nativeSocket; true');
+  passed('failed phone joins stop loading, restore single player, and allow retry');
+  await olderPhone.evaluate("window.quake.command('name PhoneFallback'); window.scrollTo(0, 0); true");
+  await tap(olderPhone, '#join');
+  await waitFor(async () => { const state = await game(olderPhone); return state?.signon === 4 && !state.serverActive && state.map === 'maps/e1m1.bsp'; }, 'phone joins co-op without WebTransport');
+  assert.equal(await olderPhone.evaluate('window.quake.network.snapshot().find(connection => connection.open).transport'), 'websocket');
+  await olderPhone.evaluate("window.quake.command('say Phone fallback chat verified'); true");
+  await waitFor(() => olderPhone.evaluate("window.quake.logs.some(line => line.includes('Phone fallback chat verified'))"), 'phone receives its server chat echo');
+  // Only the foreground tab renders and runs the engine. Bring each player
+  // forward before inspecting replicated engine state or sending touch input.
+  await page.send('Page.bringToFront');
+  await waitFor(() => page.evaluate("window.quake.state().players.some(player => player.name === 'PhoneFallback')"), 'native player sees the compatible phone player');
+  await waitFor(() => page.evaluate("window.quake.logs.some(line => line.includes('Phone fallback chat verified'))"), 'phone chat crosses the compatible connection');
+  assert.equal(await olderPhone.evaluate("getComputedStyle(document.getElementById('network-status')).display !== 'none' && !document.getElementById('network-status').closest('[hidden]')"), true);
+  await olderPhone.send('Page.bringToFront');
+  await tap(olderPhone, '#leave');
+  await waitFor(async () => (await game(olderPhone))?.serverActive, 'phone leaves multiplayer for single player');
+  assert.equal(await olderPhone.evaluate("document.getElementById('join').disabled"), false);
+  assert.deepEqual(await olderPhone.evaluate('window.__quakeErrors'), []);
+  passed('portrait phones without WebTransport join shared co-op, chat, and return to single player');
   passed('no browser errors');
 } catch (error) {
   failure = error;

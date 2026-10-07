@@ -1,5 +1,37 @@
 # Browser verification
 
+## iOS co-op join regression — October 7, 2026
+
+The prior mobile test covered missing desktop input APIs, but not Apple's native
+WebTransport implementation. The pinned HTTP/3 dependency has an open
+[Safari stream-credit issue](https://github.com/fails-components/webtransport/issues/490).
+The client also relied on closing a session to settle a hung stream promise,
+which could leave Join pending indefinitely. Joins now have a rejecting deadline
+and automatically use a secure WebSocket connection when native transport or
+Quake sign-on fails. Connection status is visible outside Controls & details.
+
+Verified locally with the actual WASM engines and Chromium:
+
+- Protocol tests force both `ready` and stream creation to hang, including a
+  session whose `close` never settles either promise. Both recover over WebSocket;
+  without a fallback the attempt rejects with a timed-out stage.
+- Real socket tests check maximum reliable payloads, updates, backpressure,
+  malformed messages, origins, room routes, protocol negotiation, and a player
+  limit shared with WebTransport sessions.
+- `test:multiplayer` uses one native and one compatibility connection: shared
+  monster attacks, damage, kills and corpses, movement, chat, level changes,
+  switching rooms, reconnect cycles, and server restart all pass.
+- `test:deathmatch` uses both transports for PvP damage, deaths, frag scores,
+  respawning, round limits, score resets and room isolation.
+- `test:touch` covers a portrait phone without WebTransport joining a native
+  player, exchanging chat and returning to single player. An intentionally
+  failed join restores the playable start map and enables retry with a visible
+  error. The earlier touch controls, music and fullscreen checks also pass.
+
+`test:production` now forces one public client's native stream creation to hang
+and checks recovery alongside a native player, including shared monster combat.
+These checks do not constitute physical iPhone or native Safari verification.
+
 ## Mobile startup regression — October 7, 2026
 
 The launcher crashed before wiring up Launch Quake when `requestPointerLock`

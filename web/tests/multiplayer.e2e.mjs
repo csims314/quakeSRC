@@ -103,20 +103,22 @@ try {
   const spawnedMonsters = await world();
   assert.ok(initial.totalMonsters > 0 && spawnedMonsters.alive >= initial.totalMonsters);
   passed('dedicated original Quake engine starts in co-op on e1m1');
-  for (const session of sessions) {
+  for (const [index, session] of sessions.entries()) {
     await browser(session, ['open', url]);
     const snapshot = await browser(session, ['snapshot', '-i']);
     assert.ok(JSON.stringify(snapshot).includes('Launch Quake'));
     assert.ok(JSON.stringify(snapshot).includes('Join co-op'));
     assert.ok((await evaluate(session, "document.getElementById('multiplayer-summary').textContent")).includes('Original monsters'));
     assert.deepEqual((await game(session)).errors, []);
+    if (index === 1) await evaluate(session, 'window.WebTransport = undefined; true');
     await click(session, 'Launch Quake');
     await waitFor(async () => (await evaluate(session, 'window.quake?.ready && window.quake.state().signon === 4')), 'single-player startup');
     await browser(session, ['press', 'Escape']);
     await join(session);
+    assert.equal((await game(session)).network.find(connection => connection.open).transport, index === 1 ? 'websocket' : 'webtransport');
   }
   await waitFor(async () => (await status()).players.length === 2, 'two spawned players');
-  passed('two browsers join through the real multiplayer button without certificate bypasses');
+  passed('WebTransport and WebSocket players join the same game through the real multiplayer button');
 
   await evaluate(sessions[0], "window.quake.command('name Alpha\\nsay WebTransport reliable chat verified'); true");
   await waitFor(async () => (await game(sessions[1])).log.some(line => line.includes('WebTransport reliable chat verified')), 'reliable chat received by second player');

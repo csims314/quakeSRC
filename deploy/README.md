@@ -2,6 +2,13 @@
 
 This deploys both the browser game and the persistent, authoritative QuakeSpasm WebTransport server. It requires a Linux host with Docker Compose, a domain pointing directly at that host, and inbound TCP 80/443 plus UDP 4433. DNS/CDN services must allow direct UDP traffic to the game host. The browser page receives trusted HTTPS from Caddy; WebTransport uses its server-generated, rotating twelve-day EC certificate pinned by the HTTPS config response. Existing game connections survive certificate renewal.
 
+Browsers that cannot complete a WebTransport join automatically use WebSocket
+through the same trusted HTTPS origin, at `/multiplayer/coop` or
+`/multiplayer/deathmatch`. Caddy forwards these upgrades automatically; another
+reverse proxy must forward WebSocket upgrades to container port 3000. This needs
+no additional public port or certificate and also works on networks blocking
+UDP 4433. Both transports share each room's eight-player limit and game state.
+
 From the project root on that host:
 
 ```sh

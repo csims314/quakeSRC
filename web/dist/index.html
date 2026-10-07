@@ -55,6 +55,7 @@
       <button id="details-toggle" aria-expanded="false" aria-controls="details">Controls &amp; details</button></span>
     </div>
     <p id="multiplayer-summary" role="status">Co-op · Original monsters · Normal · Up to 8 players</p>
+    <p id="network-status" role="status" aria-live="polite">Join co-op or deathmatch after launching.</p>
     <section id="details" hidden>
       <p>Start a game with <strong>Esc → Single Player → New Game</strong>. Use the in-game menus to change controls, difficulty, video, sound, and saves. Mouse capture and audio require a click.</p>
       <p>On a phone or tablet, <strong>Touch controls</strong> turn on by themselves: drag on the left to move (push further to run), drag on the right or on Fire to look, and use Menu for the game menus. The game's Mouse Speed option also sets how fast the view turns.</p>
@@ -70,7 +71,6 @@
       <p>Select <strong>Deathmatch</strong>, then click <strong>Join deathmatch</strong> for player-versus-player combat in a separate eight-player room. There are no monsters. Use the original weapons and pickups, hold <kbd>Tab</kbd> for frag scores, and press fire after dying to respawn. A round ends at 20 frags or 10 minutes; press fire after intermission to start the next round. Switching modes moves only you; co-op continues for its other players.</p>
       <label for="server-url">Multiplayer server (optional)</label>
       <input id="server-url" type="url" placeholder="Use this site's server" aria-describedby="network-status">
-      <p id="network-status" role="status" aria-live="polite">Multiplayer uses WebTransport.</p>
       <p>This build runs QuakeSpasm through WebAssembly and <a href="https://github.com/ptitSeb/gl4es">GL4ES</a>. The shareware data has no soundtrack; add your own above.</p>
       <form id="command-form"><label for="command">Engine console command</label><div><input id="command" placeholder="e.g. map e1m1" autocomplete="off"><button id="send-command" disabled>Run</button></div></form>
       <details><summary>Engine log</summary><pre id="log"></pre></details>

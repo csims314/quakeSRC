@@ -9,6 +9,7 @@ import { createQuakeTransport } from './dist/network.js';
 import { validateManifest, installCharacters } from './dist/characters.js';
 import { multiplayerRules, roomStartup } from './rooms.mjs';
 import { publicStatus } from './status.mjs';
+import { createSocketServer } from './websocket.mjs';
 
 const MAX_PLAYERS = 8;
 
@@ -58,7 +59,7 @@ async function startRoom(project, definition, options) {
   const createEngine = require('./dist/engine/quakespasm.cjs');
   const logs = [];
   const sessions = new Set();
-  const network = createQuakeTransport(event => console.log(`WebTransport ${definition.id}/${event.id}: ${event.state}${event.reason ? ` (${event.reason})` : ''}`));
+  const network = createQuakeTransport(event => console.log(`${event.transport} ${definition.id}/${event.id}: ${event.state}${event.reason ? ` (${event.reason})` : ''}`));
   const engine = await createEngine({
     noInitialRun: true, quakeTransport: network,
     locateFile: name => path.join(project, 'web', 'dist', 'engine', name),
@@ -106,6 +107,18 @@ export async function startMultiplayer(project, options) {
   const port = options.multiplayerPort;
   const server = new Http3Server({ host: options.multiplayerHost, port, cert: cert.cert, privKey: cert.privateKey, secret: randomBytes(32).toString('hex') });
   const origins = options.origins;
+  const restartEmptyDeathmatch = room => {
+    if (room.id === 'deathmatch' && room.sessions.size === 0) {
+      const map = room.state().map;
+      room.command(`map ${/^[a-zA-Z0-9_]+$/.test(map) ? map : room.map}`);
+    }
+  };
+  const sockets = createSocketServer({ rooms, origins, maxPlayers: MAX_PLAYERS, accept: (room, socket) => {
+    restartEmptyDeathmatch(room);
+    room.sessions.add(socket);
+    socket.once('close', () => room.sessions.delete(socket));
+    room.network.attachSocket(socket, true);
+  } });
   // Reject arbitrary websites before they acquire a game connection.
   server.setRequestCallback(async ({ header }) => ({
     status: paths.has(header[':path']) && origins.has(header.origin) ? 200 : 403,
@@ -119,13 +132,13 @@ export async function startMultiplayer(project, options) {
     if (sessions.size >= MAX_PLAYERS) { session.close({ closeCode: 2, reason: 'Server full' }); return; }
     // Quake's clock keeps advancing in an empty dedicated server. Start a
     // fresh native round when its first deathmatch player arrives.
-    if (room.id === 'deathmatch' && sessions.size === 0) {
-      const map = room.state().map;
-      room.command(`map ${/^[a-zA-Z0-9_]+$/.test(map) ? map : room.map}`);
-    }
+    restartEmptyDeathmatch(room);
     sessions.add(session);
     let id;
-    const timeout = setTimeout(() => session.close({ closeCode: 3, reason: 'No game stream received' }), 5000);
+    const timeout = setTimeout(() => {
+      console.warn(`WebTransport ${room.id}: no game stream received before join deadline`);
+      session.close({ closeCode: 3, reason: 'No game stream received' });
+    }, 5000);
     session.closed.then(() => sessions.delete(session), () => sessions.delete(session));
     try {
       await session.ready;
@@ -167,8 +180,11 @@ export async function startMultiplayer(project, options) {
   renewal.unref();
   const roomConfig = room => {
       const state = room.state();
+      const socketUrl = new URL(`/multiplayer/${room.id}`, options.publicOrigin);
+      socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       return { id: room.id, label: room.label, available: Boolean(state.serverActive), transport: 'webtransport',
         url: new URL(room.path, options.multiplayerUrl).href, certificateHash: cert.hash,
+        websocketUrl: socketUrl.href, transports: ['webtransport', 'websocket'],
         mode: state.coop && !state.deathmatch ? 'coop' : 'deathmatch', monsters: !state.deathmatch && !state.nomonsters,
         skill: state.skill, map: state.map, maxPlayers: MAX_PLAYERS, players: state.players.length,
         fragLimit: state.fragLimit, timeLimit: state.timeLimit };
@@ -179,6 +195,7 @@ export async function startMultiplayer(project, options) {
     return room;
   };
   return {
+    attachWebSockets: server => sockets.attach(server),
     config: mode => ({ ...roomConfig(selectedRoom(mode)), defaultMode: rules.defaultMode, rooms: [...rooms.values()].map(roomConfig) }),
     healthy: () => [...rooms.values()].every(room => room.state().serverActive),
     status: mode => { const room = selectedRoom(mode); return { ...room.state(), transport: room.network.snapshot(), logs: room.logs }; },
@@ -187,6 +204,7 @@ export async function startMultiplayer(project, options) {
     command: (text, mode) => selectedRoom(mode).command(text),
     stop: () => {
       clearInterval(renewal);
+      sockets.stop();
       for (const room of rooms.values()) { room.network.closeAll(); for (const session of room.sessions) session.close(); }
       server.stopServer();
     },
