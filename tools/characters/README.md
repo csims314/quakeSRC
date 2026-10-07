@@ -22,7 +22,9 @@ Nick and Chris share LibreQuake's BSD-licensed player body and its 143 animation
 
 For Chris, use `chris/photo.json` and `node tools/characters/chris/from-photo.mjs path/to/chris.png`, then run the same build command. Review with `node tools/characters/preview.mjs web/dist/characters/chris/player.mdl head.png head`. His face, ears and short curls are projected from the supplied photo; the unseen back uses samples of that photo's hair and neck. The lower neck blends with the chest during animation.
 
-The common assembler, photo mesh, photo sampling and HUD variants live in `lib/`. Character modules supply their measurements, depth profiles and texture treatment. Nick's output remains byte-for-byte unchanged by this sharing.
+The common assembler, photo mesh, photo sampling and HUD variants live in `lib/`. Character modules supply their measurements, depth profiles and texture treatment.
+
+Both heads use four atlas panels: the original photo front, a back, and separate sides projected along head depth. The sides use `art/profile.png`, generated with built-in imagegen from the character's existing photo reference; the exact prompts are in `nick/art/profile.prompt.txt` and `chris/art/profile.prompt.txt`. `profile.json` aligns each profile's crown, eye, mouth, chin and ear to the mesh. `lib/side-textures.mjs` blends the original front/back colors at the joins. Head depth is reduced to 78% while preserving the photo's width/height and central front UVs, so ears, cheeks and glasses arms no longer smear over the side. HUD source art is unchanged.
 
 Run `npm run test:characters` for two-browser model, character switching, corpse and HUD checks. Set `QUAKE_TEST_PUBLIC_URL` to use the same checks against the deployed game; its co-op room should be a fresh E1M1 with no other players.
 

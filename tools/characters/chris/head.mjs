@@ -14,5 +14,6 @@ const profile = {
 const rings = [3.5, 3.2, 2.8, 2.35, 1.9, 1.45, 1.05, 0.7, 0.35, 0, -0.35, -0.7, -1, -1.3, -1.6, -1.95, -2.3, -2.65, -3.05, -3.5, -3.8, -4.15];
 // The jaw moves with the head; the bottom of the neck blends into the chest.
 const skinWeight = (_y, z) => 1 - 0.75 * Math.max(0, Math.min(1, (-z - 3.5) / 0.9));
-export const { photo, toLocal, frontGrid, EDGE_INSET, loadFront, silhouette, RINGS, buildHead } =
-  createPhotoHead(spec, front, { profile, rings, crown: 3.7, skinWeight, frontSamples: 25, backSamples: 11 });
+export const { photo, toLocal, frontGrid, sideGrid, surfaceX, EDGE_INSET, loadFront, silhouette, RINGS, buildHead } =
+  createPhotoHead(spec, front, { profile, rings, crown: 3.7, skinWeight, frontSamples: 25, backSamples: 11,
+    depthScale: 0.78, sidePanels: true });

@@ -3,6 +3,7 @@ import { createCharacterBuilder } from '../lib/character.mjs';
 import { buildHead, loadFront, frontGrid, RINGS } from './head.mjs';
 import { frontTexture, backTexture } from './textures.mjs';
 import { hudFaces, shrink } from './hud.mjs';
+import { sideTextures } from './side.mjs';
 export const { buildPlayer, buildGibHead, buildFiles: buildChris } = createCharacterBuilder({
-  buildHead, loadFront, frontGrid, RINGS, frontTexture, backTexture, hudFaces, shrink, gibBottom: -3.95,
+  buildHead, loadFront, frontGrid, RINGS, frontTexture, backTexture, sideTextures, hudFaces, shrink, gibBottom: -3.95,
 });

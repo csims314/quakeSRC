@@ -11,11 +11,13 @@ const credits = `Player characters
 
 Nick
   Head and status-bar faces: made for this project from a photo of Nick, used with his permission.
+  Side profile texture: generated with built-in imagegen using that photo as an identity reference.
   Body and animation: LibreQuake player model (lq1/progs/player.mdl), commit
   4d2da523331f00211c97c90dc5af8672a2967618, under the license below.
 
 Chris
   Head and status-bar faces: made from the Chris photo supplied for this project.
+  Side profile texture: generated with built-in imagegen using the supplied photo as an identity reference.
   Body and animation: the same BSD-licensed LibreQuake player model as Nick.
 
 ${readFileSync(new URL('vendor/librequake/COPYING', import.meta.url), 'utf8').replace(/\r\n/g, '\n')}`;

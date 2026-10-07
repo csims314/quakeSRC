@@ -73,6 +73,23 @@ for (const character of custom) {
     assert.ok([...skin.subarray(0, 296)].some(RECOLOURED));
   });
 
+  test(`${character.name}'s side UVs follow head depth instead of stretching its front photo`, () => {
+    const model = readMdl(readFileSync(new URL(`${character.id}/player.mdl`, root)));
+    const positions = framePositions(model, model.frames[12]);
+    const width = (model.skinWidth - 296) / 4;
+    for (const panel of [2, 3]) {
+      const samples = model.stverts.flatMap((uv, i) => uv.s >= 296 + panel * width && uv.s < 296 + (panel + 1) * width
+        ? [[positions[i][0], uv.s - 296 - panel * width]] : []);
+      assert.ok(samples.length > 100, 'each side must have its own atlas panel');
+      const average = column => samples.reduce((sum, p) => sum + p[column], 0) / samples.length;
+      const [mx, ms] = [average(0), average(1)];
+      const slope = samples.reduce((sum, [x, s]) => sum + (x - mx) * (s - ms), 0)
+        / samples.reduce((sum, [x]) => sum + (x - mx) ** 2, 0);
+      const worst = Math.max(...samples.map(([x, s]) => Math.abs(s - (ms + slope * (x - mx)))));
+      assert.ok(slope > 20 && worst < 1, `side texture must advance along depth, without streaks (${worst.toFixed(2)} texels)`);
+    }
+  });
+
   test(`${character.name}'s gib head and status-bar faces are complete`, () => {
     const head = readMdl(readFileSync(new URL(`${character.id}/h_player.mdl`, root)));
     assert.equal(head.frames.length, 1);

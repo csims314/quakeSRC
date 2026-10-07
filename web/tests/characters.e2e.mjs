@@ -165,6 +165,20 @@ try {
   await shot(nick, 'nick-hud.png');
   passed('the other player sees Nick, and Nick sees Chris');
 
+  // Review both sides through the actual renderer, with the viewing player
+  // zoomed onto the head. Keep these images alongside the frontal comparison.
+  for (const [subject, viewer, character, y, facing] of [[nick, ranger, 'nick', 200, 270], [ranger, nick, 'chris', 140, 90]]) {
+    await command(viewer, 'fov 35\nr_drawviewmodel 0');
+    for (const [angle, side] of [[0, 'right'], [180, 'left']]) {
+      await command(subject, `setpos 480 ${y} 24 0 ${angle} 0`);
+      await delay(400);
+      await shot(viewer, `${character}-profile-${side}.png`);
+    }
+    await command(subject, `setpos 480 ${y} 24 0 ${facing} 0`);
+    await command(viewer, 'fov 90\nr_drawviewmodel 1');
+  }
+  passed('both sides of Nick and Chris render with the profile textures');
+
   for (const scale of [1, 2, 3]) await checkHudPortrait(scale);
   for (const scale of [1, 2, 3]) await checkHudPortrait(scale, ranger, 'chris');
   passed('the complete portrait fits its HUD slot at every status-bar scale');

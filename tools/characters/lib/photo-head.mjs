@@ -1,7 +1,8 @@
 import { sub, cross, dot, centroid } from './math.mjs';
 
 // Silhouette-driven head mesh with configurable depth, crown and neck weights.
-export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown = 3.67, skinWeight, frontSamples = 15, backSamples = 7 } = {}) {
+export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown = 3.67, skinWeight,
+  frontSamples = 15, backSamples = 7, depthScale = 1, sidePanels = false, sideBottom = -Infinity } = {}) {
   const UNIT = 1 / photo.pixelsPerUnit;
   const [CX, CY] = photo.center;
   const toLocal = ([px, py]) => [(px - CX) * UNIT, (CY - py) * UNIT];
@@ -69,6 +70,11 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
   const frontDepth = table(Z, profile.front ?? [-0.3, 1.3, 2.2, 2.7, 3.0, 3.2, 3.3, 3.35, 3.2, 3.2, 3.25, 3.3, 3.35, 3.3, 3.2, 2.95, 2.4, 1.7, 1.45, 1.4]);
   const sideDepth = table(Z, profile.side ?? [-0.4, -0.4, -0.4, -0.4, -0.4, -0.45, -0.5, -0.5, -0.5, -0.5, -0.55, -0.6, -0.7, -0.8, -0.9, -1.0, -1.0, -1.0, -0.9, -0.8]);
   const backDepth = table(Z, profile.back ?? [-0.5, -1.5, -2.4, -3.0, -3.4, -3.7, -3.85, -3.9, -3.9, -3.85, -3.75, -3.6, -3.5, -3.45, -3.4, -3.35, -3.3, -3.2, -2.7, -2.2]);
+  const sideGrid = {
+    ...frontGrid,
+    xMin: Math.min(...(profile.back ?? [-3.9])) * depthScale,
+    xMax: (Math.max(...(profile.front ?? [3.35])) + 1.3) * depthScale,
+  };
   const superellipse = (u, p, q) => Math.pow(Math.max(0, 1 - Math.pow(Math.min(1, Math.abs(u)), p)), 1 / q);
   const gauss = (v, s) => Math.exp(-((v / s) ** 2));
 
@@ -110,6 +116,14 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
     }
     const u = y < 0 ? y / outline.left : y / outline.right;
     return xs + (xf - xs) * superellipse(u, 2.3, 2) + relief(y, z);
+  }
+
+  // Used when baking the side atlas: invert the surface to find the matching
+  // front/back texel at the join, rather than stretching the photo's edge.
+  function surfaceX(y, z, outline, back = false) {
+    if (!back) return frontX(y, z, outline) * depthScale;
+    const u = y < 0 ? y / outline.left : y / outline.right;
+    return (sideDepth(z) - (sideDepth(z) - backDepth(z)) * superellipse(u, 2.2, 2.2)) * depthScale;
   }
 
   const RINGS = rings ?? [3.5, 3.2, 2.8, 2.35, 1.9, 1.45, 1.05, 0.7, 0.35, 0.0, -0.35, -0.7, -1.0, -1.3, -1.6, -1.95, -2.3, -2.65, -3.05, -3.5, -4.0, -4.5, -4.95, -5.35, -5.75, -6.15];
@@ -191,8 +205,34 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
       return true;
     });
     if (outward > live.length / 2) for (const t of live) [t[1], t[2]] = [t[2], t[1]];
-    return { vertices, triangles: live };
+    for (const vertex of vertices) vertex.position[0] *= depthScale;
+    if (!sidePanels) return { vertices, triangles: live };
+
+    // Each projection owns its UVs. Shared positions stay welded for lighting;
+    // only vertices at an atlas join are duplicated. Side UVs run along depth,
+    // so a cheek/ear texel can no longer smear across the whole side of a head.
+    const mapped = [], remap = new Map();
+    const trianglesWithPanels = live.map(triangle => {
+      const mid = centroid(triangle.map(i => vertices[i].position));
+      const outline = silhouette(front, Math.max(RINGS.at(-1), Math.min(RINGS[0], mid[2])));
+      const width = mid[1] < 0 ? -outline.left : outline.right;
+      const panel = mid[2] >= sideBottom && Math.abs(mid[1]) / width > 0.72
+        ? (mid[1] < 0 ? 'left' : 'right') : vertices[triangle[0]].side;
+      return triangle.map(i => {
+        const key = `${i}/${panel}`;
+        if (remap.has(key)) return remap.get(key);
+        const vertex = vertices[i];
+        const uv = panel === 'left' || panel === 'right' ? [
+          (vertex.position[0] - sideGrid.xMin) / (sideGrid.xMax - sideGrid.xMin) * sideGrid.width,
+          (sideGrid.zTop - vertex.position[2]) / sideGrid.step,
+        ] : vertex.uv;
+        remap.set(key, mapped.length);
+        mapped.push({ ...vertex, side: panel, uv });
+        return mapped.length - 1;
+      });
+    });
+    return { vertices: mapped, triangles: trianglesWithPanels };
   }
 
-  return { photo, toLocal, frontGrid, EDGE_INSET, loadFront, silhouette, RINGS, buildHead };
+  return { photo, toLocal, frontGrid, sideGrid, surfaceX, EDGE_INSET, loadFront, silhouette, RINGS, buildHead };
 }

@@ -10,7 +10,7 @@ export const palette = readFileSync(new URL('palette.lmp', vendor));
 
 // Attach a photo head to the shared animated body and build its HUD assets.
 export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
-  frontTexture, backTexture, hudFaces, shrink, gibBottom = -5.2 }) {
+  frontTexture, backTexture, sideTextures, hudFaces, shrink, gibBottom = -5.2 }) {
   // Frame names follow the player animations in id's QuakeC player.qc.
   const FRAME_NAMES = [
     ...['axrun', 'rockrun'].flatMap(n => [1, 2, 3, 4, 5, 6].map(i => n + i)),
@@ -28,22 +28,26 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
   const STAND = FRAME_NAMES.indexOf('stand1');
   // Head-local origin (eye line, face centre) in the body's stand1 pose.
   const HEAD_ORIGIN = [0.4, -1.3, 22.35];
-  const ATLAS = { front: 296, back: 296 + frontGrid.width, width: 296 + frontGrid.width * 2, height: frontGrid.height };
+  const panels = sideTextures ? ['front', 'back', 'left', 'right'] : ['front', 'back'];
+  const ATLAS = { front: 296, width: 296 + frontGrid.width * panels.length, height: frontGrid.height };
 
   function headAtlas(quantizer) {
     const region = image => quantizer.quantize(image.rgba, image.width, image.height, { strength: 0.75 });
     const front = loadFront();
-    return { front: region(frontTexture(front)), back: region(backTexture(front)) };
+    const images = { front: frontTexture(front), back: backTexture(front) };
+    if (sideTextures) Object.assign(images, sideTextures(front, images));
+    return Object.fromEntries(panels.map(panel => [panel, region(images[panel])]));
   }
 
   function skinWith(head, body = null) {
-    const width = body ? ATLAS.width : frontGrid.width * 2, height = ATLAS.height;
+    const width = body ? ATLAS.width : frontGrid.width * panels.length, height = ATLAS.height;
     const skin = new Uint8Array(width * height).fill(body ? body.skins[0][0] : 0);
     if (body) for (let t = 0; t < body.skinHeight; t++) skin.set(body.skins[0].subarray(t * body.skinWidth, (t + 1) * body.skinWidth), t * width);
     const x0 = body ? ATLAS.front : 0;
     for (let t = 0; t < frontGrid.height; t++) {
-      skin.set(head.front.subarray(t * frontGrid.width, (t + 1) * frontGrid.width), t * width + x0);
-      skin.set(head.back.subarray(t * frontGrid.width, (t + 1) * frontGrid.width), t * width + x0 + frontGrid.width);
+      for (const [i, panel] of panels.entries()) {
+        skin.set(head[panel].subarray(t * frontGrid.width, (t + 1) * frontGrid.width), t * width + x0 + i * frontGrid.width);
+      }
     }
     return { skin, width, height };
   }
@@ -51,7 +55,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
   function stvert(vertex, x0) {
     const s = Math.max(0, Math.min(frontGrid.width - 1, Math.round(vertex.uv[0] - 0.5)));
     const t = Math.max(0, Math.min(frontGrid.height - 1, Math.round(vertex.uv[1] - 0.5)));
-    return { onseam: 0, s: x0 + s + (vertex.side === 'back' ? frontGrid.width : 0), t };
+    return { onseam: 0, s: x0 + s + panels.indexOf(vertex.side) * frontGrid.width, t };
   }
 
   function buildPlayer(head = buildHead(loadFront()), atlas = headAtlas(createQuantizer(palette, SKIN_INDICES))) {
