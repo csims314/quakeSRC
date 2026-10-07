@@ -290,6 +290,11 @@ try {
   await waitFor(() => page.evaluate("!document.querySelector('[data-menu-panel=settings]').hidden"), 'settings page');
   await page.evaluate("document.getElementById('sensitivity').value=5; document.getElementById('sensitivity').dispatchEvent(new Event('input',{bubbles:true})); true");
   await waitFor(async () => (await game(page)).sensitivity === 5, 'settings change the actual engine sensitivity');
+  assert.equal(await page.evaluate("document.getElementById('player-name').value"), (await game(page)).settings.name);
+  assert.ok((await game(page)).settings.name.length > 0, 'Settings shows the current player name');
+  await page.evaluate("document.getElementById('player-name').value='TouchTester'; true");
+  await tap(page, '#name-form button');
+  await waitFor(async () => (await game(page)).settings.name === 'TouchTester' && (await game(page)).players[0].name === 'TouchTester', 'Set name changes the real player');
   await tap(page, '#menu-back');
   await tap(page, '[data-page=singleplayer]');
   await page.evaluate("document.getElementById('difficulty').value='2'; document.getElementById('newgame-map').value='e1m1'; true");
@@ -326,6 +331,12 @@ try {
   assert.ok(Number.isInteger(listed.ping) && listed.seconds >= 0);
   assert.deepEqual(Object.keys(listed).sort(), ['frags', 'name', 'ping', 'seconds']);
   passed('public status lists the player by name with ping and time online');
+  await openMenu(page,'multiplayer');
+  await page.evaluate("document.getElementById('chat').value='Touch menu chat verified'; true");
+  await tap(page,'#chat-send');
+  await waitFor(() => page.evaluate("window.quake.logs.some(line=>line.includes('Touch menu chat verified'))"), 'touch chat form reaches the multiplayer server');
+  await tap(page,'#menu-resume');
+  await waitFor(async () => (await game(page)).keyDest === 'game', 'return after chatting');
 
   const { targetId } = await devtools.send('Target.createTarget', { url: `${url}/status` });
   const statusPage = await attach(targetId);

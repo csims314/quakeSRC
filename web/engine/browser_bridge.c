@@ -122,7 +122,7 @@ EMSCRIPTEN_KEEPALIVE const char *Web_State(void)
     const vec_t *origin = vec3_origin;
     char player_name[512];
     int i, length;
-    Web_JsonName(player_name, sizeof(player_name), Cvar_VariableString("name"));
+    Web_JsonName(player_name, sizeof(player_name), Cvar_VariableString("_cl_name"));
     if (cl_entities && cls.state == ca_connected && cl.viewentity < cl.num_entities)
         origin = cl_entities[cl.viewentity].origin;
     q_snprintf(state, sizeof(state),

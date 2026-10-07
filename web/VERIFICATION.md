@@ -15,7 +15,8 @@ fullscreen and (for the portrait peer) WebTransport APIs removed before load:
 
 - Launch is visible without scrolling at 320×568, 390×844, 844×390 and 915×412.
 - Menu/return/close controls remain visible across all six portrait menu pages.
-- Local game time stops in the menu. Settings change engine sensitivity.
+- Local game time stops in the menu. Settings change engine sensitivity and
+  the player name; the chat form sends messages to the multiplayer engine.
 - New game starts the requested level at Hard difficulty; saving writes and
   syncs a real Quake save, and loading restores its map, difficulty and position.
 - Expanded portrait rendering uses a portrait drawing buffer and resizes on
