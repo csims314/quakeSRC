@@ -2,7 +2,7 @@ import { sub, cross, dot, centroid } from './math.mjs';
 
 // Silhouette-driven head mesh with configurable depth, crown and neck weights.
 export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown = 3.67, skinWeight,
-  frontSamples = 15, backSamples = 7, depthScale = 1, sidePanels = false, sideBottom = -Infinity } = {}) {
+  frontSamples = 15, backSamples = 7, depthScale = 1, sidePanels = false, sideBottom = -Infinity, outlineAt } = {}) {
   const UNIT = 1 / photo.pixelsPerUnit;
   const [CX, CY] = photo.center;
   const toLocal = ([px, py]) => [(px - CX) * UNIT, (CY - py) * UNIT];
@@ -35,6 +35,8 @@ export function createPhotoHead(photo, loadFront, { profile = {}, rings, crown =
   }
 
   function silhouette(front, z) {
+    const designed = outlineAt?.(z);
+    if (designed) return designed;
     const row = Math.round((frontGrid.zTop - z) / frontGrid.step - 0.5);
     const rows = [];
     for (let r = row - 2; r <= row + 2; r++) {

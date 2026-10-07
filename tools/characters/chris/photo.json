@@ -4,7 +4,7 @@
   "height": 1024,
   "pixelsPerUnit": 86,
   "center": [380, 467],
-  "front": { "x": 85, "y": 130, "width": 256, "height": 320, "pixelsPerTexel": 2.25 },
+  "front": { "x": 85, "y": 130, "width": 256, "height": 416, "pixelsPerTexel": 2.25 },
   "hud": { "x": 25, "y": 110, "size": 700, "texels": 96 },
   "landmarks": {
     "eyes": [[298, 465], [463, 470]],

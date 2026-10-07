@@ -24,9 +24,11 @@ for (const name of frames) {
   const angles = view === 'head' ? [0, 35, 90, 180] : [20, 160];
   for (const angle of angles) {
     const r = (angle * Math.PI) / 180, image = createImage(view === 'head' ? 440 : 400, view === 'head' ? 520 : 640);
-    const target = view === 'head' ? [0.6, -1.3, 21.2] : [0, 0, 2];
+    const head = positions.filter((_, i) => model.frames.length === 1 || model.stverts[i].s >= 296);
+    const low = Math.min(...head.map(p => p[2])), high = Math.max(...head.map(p => p[2]));
+    const target = view === 'head' ? [0.6, -1.3, (low + high) / 2] : [0, 0, 2];
     const distance = 90;
-    const cam = camera({ eye: [target[0] + Math.cos(r) * distance, target[1] + Math.sin(r) * distance, target[2] + (view === 'head' ? 1 : 12)], target, ortho: view === 'head' ? 7 : 36 });
+    const cam = camera({ eye: [target[0] + Math.cos(r) * distance, target[1] + Math.sin(r) * distance, target[2] + (view === 'head' ? 1 : 12)], target, ortho: view === 'head' ? Math.max(7, (high - low) * 0.6) : 36 });
     drawMesh(image, { positions, triangles, texture }, cam, { light: [0.7, 0.35, 0.65], ambient: 0.5 });
     images.push(downsample(image, 2));
   }

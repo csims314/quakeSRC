@@ -10,7 +10,8 @@ export const palette = readFileSync(new URL('palette.lmp', vendor));
 
 // Attach a photo head to the shared animated body and build its HUD assets.
 export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
-  frontTexture, backTexture, sideTextures, hudFaces, shrink, gibBottom = -5.2 }) {
+  frontTexture, backTexture, sideTextures, neckTexture, hudFaces, shrink, gibBottom = -5.2,
+  headScale = 1, neckTop = -4.5, neckBase = -6.4, neckOverlap = 0 }) {
   // Frame names follow the player animations in id's QuakeC player.qc.
   const FRAME_NAMES = [
     ...['axrun', 'rockrun'].flatMap(n => [1, 2, 3, 4, 5, 6].map(i => n + i)),
@@ -28,7 +29,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
   const STAND = FRAME_NAMES.indexOf('stand1');
   // Head-local origin (eye line, face centre) in the body's stand1 pose.
   const HEAD_ORIGIN = [0.4, -1.3, 22.35];
-  const panels = sideTextures ? ['front', 'back', 'left', 'right'] : ['front', 'back'];
+  const panels = [...(sideTextures ? ['front', 'back', 'left', 'right'] : ['front', 'back']), ...(neckTexture ? ['neck'] : [])];
   const ATLAS = { front: 296, width: 296 + frontGrid.width * panels.length, height: frontGrid.height };
 
   function headAtlas(quantizer) {
@@ -36,6 +37,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
     const front = loadFront();
     const images = { front: frontTexture(front), back: backTexture(front) };
     if (sideTextures) Object.assign(images, sideTextures(front, images));
+    if (neckTexture) images.neck = neckTexture(front);
     return Object.fromEntries(panels.map(panel => [panel, region(images[panel])]));
   }
 
@@ -80,7 +82,15 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
       ...head.triangles.map(t => ({ front: 1, v: t.map(v => v + offset) })),
     ];
     const stverts = [...keep.map(i => body.stverts[i]), ...head.vertices.map(v => stvert(v, ATLAS.front))];
-    const placed = head.vertices.map(v => v.position.map((p, k) => p + HEAD_ORIGIN[k]));
+    const placed = head.vertices.map(v => {
+      const [x, y, z] = v.position;
+      const t = Math.max(0, Math.min(1, (z - neckBase) / (neckTop - neckBase)));
+      const scale = 1 + (headScale - 1) * t * t * (3 - 2 * t);
+      // Enlarge the whole head uniformly around the top of its neck. Below
+      // that joint, taper to the original collar size and retain its height.
+      const height = z >= neckTop ? neckTop + (z - neckTop) * headScale : z - neckOverlap * (1 - t);
+      return [x * scale + HEAD_ORIGIN[0], y * scale + HEAD_ORIGIN[1], height + HEAD_ORIGIN[2]];
+    });
     const headFrames = frames.map((_, f) => placed.map((p, i) => blend(headMotion[f], chestMotion[f], p, head.vertices[i].weight)));
     const headDirections = headFrames.map(positions => smoothNormals(positions, head.triangles));
     const headNormals = steadyLightNormals(headDirections, FRAME_NAMES.map(name => name.replace(/\d+$/, '')));
@@ -106,7 +116,7 @@ export function createCharacterBuilder({ buildHead, loadFront, frontGrid, RINGS,
   // The detached head, enlarged like Quake's gib heads.
   function buildGibHead(atlas = headAtlas(createQuantizer(palette, SKIN_INDICES))) {
     const head = buildHead(loadFront(), { rings: RINGS.filter(z => z >= gibBottom + 0.25), bottom: gibBottom });
-    const scale = 1.35, lift = -gibBottom * scale - 1.5;
+    const scale = 1.35 * headScale, lift = -gibBottom * scale - 1.5;
     const positions = head.vertices.map(v => [(v.position[0] - 0.2) * scale, v.position[1] * scale, v.position[2] * scale + lift]);
     const directions = smoothNormals(positions, head.triangles);
     const quantized = quantizeFrames([{ name: 'frame1', positions, normals: directions.map(nearestLightNormal), directions }]);

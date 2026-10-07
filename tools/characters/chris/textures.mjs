@@ -4,14 +4,30 @@ import { photo, frontGrid, silhouette } from './head.mjs';
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 function sample(front, px, py) {
-  const s = clamp(Math.round((px - photo.front.x) / photo.front.pixelsPerTexel), 0, front.width - 1);
-  const t = clamp(Math.round((py - photo.front.y) / photo.front.pixelsPerTexel), 0, front.height - 1);
-  return [...front.rgba.subarray((t * front.width + s) * 4, (t * front.width + s) * 4 + 3)];
+  const s = clamp((px - photo.front.x) / photo.front.pixelsPerTexel - 0.5, 0, front.width - 1.001);
+  const t = clamp((py - photo.front.y) / photo.front.pixelsPerTexel - 0.5, 0, front.height - 1.001);
+  const x = Math.floor(s), y = Math.floor(t), sx = s - x, sy = t - y;
+  const at = (x, y, c) => front.rgba[(y * front.width + x) * 4 + c];
+  return [0, 1, 2].map(c => (at(x, y, c) * (1 - sx) + at(x + 1, y, c) * sx) * (1 - sy)
+    + (at(x, y + 1, c) * (1 - sx) + at(x + 1, y + 1, c) * sx) * sy);
 }
 
 export function frontTexture(front) {
   // Source art already extends edge colors into transparent space for mipmaps.
   const rgba = Uint8Array.from(front.rgba);
+  // The designed neck extends past the photo cutout. Use an actual bare-skin
+  // patch under the chin, so extended pixels cannot pick up the blue shirt.
+  for (let t = 0; t < front.height; t++) {
+    const z = frontGrid.zTop - (t + 0.5) * frontGrid.step;
+    const amount = 1 - smooth(-4.05, -3.65, z);
+    if (!amount) continue;
+    const length = clamp((-z - 3.65) / 3.45, 0, 1);
+    for (let s = 0; s < front.width; s++) {
+      const neck = sample(front, 366 + (s / front.width) * 26, 808 + length * 28);
+      const i = (t * front.width + s) * 4;
+      for (let c = 0; c < 3; c++) rgba[i + c] = Math.round(rgba[i + c] * (1 - amount) + neck[c] * amount);
+    }
+  }
   for (let i = 3; i < rgba.length; i += 4) rgba[i] = 255;
   return { width: front.width, height: front.height, rgba };
 }

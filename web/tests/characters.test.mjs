@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { DEFAULT_CHARACTER, validateManifest, installCharacters } from '../dist/characters.js';
 import { readMdl, framePositions, FINE_STRIDE } from '../../tools/characters/lib/mdl.mjs';
-import { rigidFit, apply, sub, length } from '../../tools/characters/lib/math.mjs';
+import { rigidFit, apply, sub, length, centroid } from '../../tools/characters/lib/math.mjs';
 import { decodePng } from '../../tools/characters/lib/png.mjs';
 import { RECOLOURED, FULLBRIGHT } from '../../tools/characters/lib/palette.mjs';
 import { buildCharacters, sameFile } from '../../tools/characters/build.mjs';
@@ -40,7 +40,7 @@ for (const character of custom) {
     const model = readMdl(readFileSync(new URL(`${character.id}/player.mdl`, root)));
     assert.ok(model.frames.every(frame => frame.fine), 'player.mdl must carry fine vertex data');
     // The head's front texture follows the 296-texel body skin; take the middle of the face.
-    const front = (model.skinWidth - 296) / 2;
+    const front = decodePng(readFileSync(new URL(`../../tools/characters/${character.id}/art/front.png`, import.meta.url))).width;
     const face = model.stverts.flatMap((v, i) => (v.s >= 296 + 0.2 * front && v.s < 296 + 0.8 * front &&
       v.t > 0.23 * model.skinHeight && v.t < 0.65 * model.skinHeight ? [i] : []));
     assert.ok(face.length > 50);
@@ -73,12 +73,37 @@ for (const character of custom) {
     assert.ok([...skin.subarray(0, 296)].some(RECOLOURED));
   });
 
+  test(`${character.name}'s neck stays inside the collar through every animation`, () => {
+    const model = readMdl(readFileSync(new URL(`${character.id}/player.mdl`, root)));
+    const stand = framePositions(model, model.frames[12]);
+    const base = model.stverts.flatMap((uv, i) => uv.s >= 296 && stand[i][2] < 15.8
+      && Math.abs(stand[i][1] + 1.3) < 2 && Math.abs(stand[i][0] - 0.4) < 2 ? [i] : []);
+    const collar = model.stverts.flatMap((uv, i) => uv.s < 296 && stand[i][2] > 15 && stand[i][2] < 17.5
+      && Math.hypot(stand[i][0] - 0.4, stand[i][1] + 1.3) < 2.2 ? [i] : []);
+    assert.ok(base.length > 20, 'the neck must extend into the armor, below the jaw');
+    assert.ok(collar.length >= 3);
+    for (const frame of model.frames) {
+      const positions = framePositions(model, frame);
+      const distance = length(sub(centroid(base.map(i => positions[i])), centroid(collar.map(i => positions[i]))));
+      assert.ok(distance < 1.6, `${frame.name} pulls the neck out of its collar (${distance.toFixed(2)} units)`);
+    }
+    const crown = Math.max(...stand.filter((_, i) => model.stverts[i].s >= 296).map(p => p[2]));
+    assert.ok(crown > 29.7 && crown < 30.2, 'the enlarged head must retain its 150% height above the neck');
+    if (character.id === 'nick') {
+      const width = decodePng(readFileSync(new URL('../../tools/characters/nick/art/front.png', import.meta.url))).width;
+      const throat = model.stverts.flatMap((uv, i) => uv.s >= 296 + 4 * width && stand[i][0] > 1
+        && Math.abs(stand[i][1] + 1.3) < 0.2 ? [i] : []);
+      assert.ok(throat.length >= 4);
+      assert.ok(throat.every(i => model.frames[12].fine[i * FINE_STRIDE + 3] > 60), 'the neck front must face and light outward');
+    }
+  });
+
   test(`${character.name}'s side UVs follow head depth instead of stretching its front photo`, () => {
     const model = readMdl(readFileSync(new URL(`${character.id}/player.mdl`, root)));
     const positions = framePositions(model, model.frames[12]);
-    const width = (model.skinWidth - 296) / 4;
+    const width = decodePng(readFileSync(new URL(`../../tools/characters/${character.id}/art/front.png`, import.meta.url))).width;
     for (const panel of [2, 3]) {
-      const samples = model.stverts.flatMap((uv, i) => uv.s >= 296 + panel * width && uv.s < 296 + (panel + 1) * width
+      const samples = model.stverts.flatMap((uv, i) => uv.s >= 296 + panel * width && uv.s < 296 + (panel + 1) * width && positions[i][2] > 19
         ? [[positions[i][0], uv.s - 296 - panel * width]] : []);
       assert.ok(samples.length > 100, 'each side must have its own atlas panel');
       const average = column => samples.reduce((sum, p) => sum + p[column], 0) / samples.length;
