@@ -106,6 +106,7 @@ export function createTouchControls(stage, game) {
   }
   root.addEventListener('contextmenu', event => event.preventDefault());
   window.addEventListener('blur', releaseAll);
+  window.addEventListener('resize', releaseAll);
   document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
 
   // Menus and the console take arrow keys; gameplay takes the stick.

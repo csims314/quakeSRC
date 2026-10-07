@@ -6,10 +6,22 @@ Double-click `launch-web.cmd` in the project root. It starts a server on `http:/
 
 - WASD: movement; mouse: look; left click: fire; Space: jump.
 - Escape: release the browser's mouse capture and open the game menu. Click the game to capture again.
-- Fullscreen: use the toolbar button. Escape can also exit browser fullscreen.
+- Fullscreen: use the toolbar button. Phones without the browser Fullscreen API
+  get an in-page view that fills the screen; **Exit fullscreen** returns to the
+  toolbar. Escape can also exit native browser fullscreen.
 - Phones and tablets: **Touch controls** turn on by themselves on touch-only devices, or when a finger touches the game; the toolbar button switches them on or off. Drag on the left half to move (push further to run), drag on the right half or on **Fire** to look, and use **Fire**, **Jump**, **Weapon** and **Scores**. **Menu** opens the game menus, which then show arrow, **OK** and **Back** buttons. Options → Mouse Speed also sets how fast touch turns the view. Turn the device sideways for the most room.
 - Save and load through Quake's original Single Player menu or console commands such as `save slot1` / `load slot1`.
 - Saves and configuration are stored in IndexedDB for this browser and origin. Browser storage can be cleared; use **Export saves** to keep a portable backup. **Import saves** accepts the exported JSON or an individual `.sav` file.
+
+Mobile play does not require the mouse Pointer Lock API. Single player also
+works without WebTransport; multiplayer controls are disabled with an explanation
+when that API is missing. iOS browsers gained WebTransport with iOS 26.4
+([Safari release notes](https://developer.apple.com/documentation/safari-release-notes/safari-26_4-release-notes)).
+`npm run test:touch` removes pointer-lock/fullscreen APIs before launch and
+checks real touch movement, aiming, firing, menus, fullscreen fallback, co-op,
+and portrait single-player launch without WebTransport. It emulates mobile
+capabilities in Chromium; it does not replace testing on a physical iPhone.
+Set `QUAKE_TEST_PUBLIC_URL` to run this same touch flow against a deployed server.
 
 ## Game data
 

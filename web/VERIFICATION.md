@@ -1,5 +1,23 @@
 # Browser verification
 
+## Mobile startup regression — October 7, 2026
+
+The launcher crashed before wiring up Launch Quake when `requestPointerLock`
+was absent: `Cannot read properties of undefined (reading 'bind')`. The old
+phone emulation retained Chrome's desktop pointer-lock APIs and missed this.
+The launcher now guards mouse capture/release, provides an in-page fullscreen
+view with an exit button, and reports missing WebTransport without blocking
+single-player play.
+
+`npm run test:touch` passed after removing pointer-lock and fullscreen APIs
+before any application scripts ran. Actual CDP touch input launched the real
+engine, moved and aimed simultaneously, fired, operated the original menus,
+entered/exited the fullscreen fallback and joined co-op. A second portrait
+phone profile without WebTransport launched single player and showed why
+multiplayer was unavailable. Both profiles finished without JavaScript errors.
+All 42 unit tests passed. These are mobile-capability tests in Chromium, not
+tests on a physical iPhone.
+
 Verified locally on October 5, 2026 with agent-browser's Chromium 152 browser.
 
 | Flow | Evidence |

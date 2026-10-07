@@ -12,7 +12,7 @@ import { createServer as portProbe } from 'node:net';
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const port = Number(process.env.QUAKE_TEST_WEB_PORT || 3106);
 const quicPort = Number(process.env.QUAKE_TEST_MULTIPLAYER_PORT || 4448);
-const url = `http://127.0.0.1:${port}`;
+const url = process.env.QUAKE_TEST_PUBLIC_URL || `http://127.0.0.1:${port}`;
 const nativeCli = path.join(path.dirname(process.execPath), 'node_modules', 'agent-browser', 'bin', 'agent-browser-win32-x64.exe');
 const cli = process.env.AGENT_BROWSER_BIN || (process.platform === 'win32' && existsSync(nativeCli) ? nativeCli : 'agent-browser');
 const artifactDir = path.join(project, 'web/test-artifacts');
@@ -107,6 +107,12 @@ async function screenshot(page, name) {
 }
 const game = page => page.evaluate('window.quake?.ready ? window.quake.state() : null');
 const distance = (a, b) => Math.hypot(...a.map((n, i) => n - b[i]));
+const mobileAPIs = `
+  Object.defineProperty(HTMLCanvasElement.prototype, 'requestPointerLock', { configurable: true, writable: true, value: undefined });
+  Object.defineProperty(document, 'exitPointerLock', { configurable: true, writable: true, value: undefined });
+  Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', { configurable: true, writable: true, value: undefined });
+  Object.defineProperty(document, 'exitFullscreen', { configurable: true, writable: true, value: undefined });
+`;
 
 // One-second PCM WAV tone, so the test needs no audio encoder.
 function wav(frequency) {
@@ -124,6 +130,7 @@ function passed(name) { checks.push(name); console.log(`PASS ${name}`); }
 
 await mkdir(artifactDir, { recursive: true });
 try {
+  if (!process.env.QUAKE_TEST_PUBLIC_URL) {
   await new Promise((resolve, reject) => {
     const probe = portProbe();
     probe.once('error', reject);
@@ -135,6 +142,7 @@ try {
   });
   server.stdout.on('data', chunk => { serverOutput += chunk; });
   server.stderr.on('data', chunk => { serverOutput += chunk; });
+  }
   await waitFor(async () => (await fetch(`${url}/healthz`)).ok, 'server startup');
 
   await browser(['open', 'about:blank']);
@@ -143,11 +151,16 @@ try {
   const page = await attach(targetInfos.find(target => target.type === 'page').targetId);
   // The browser can hold another tab; a background tab is hidden, never renders and never takes touch input.
   await page.send('Page.bringToFront');
+  await page.send('Page.enable');
   // A landscape phone: touch only, no mouse.
   await page.send('Emulation.setDeviceMetricsOverride', { width: 915, height: 412, deviceScaleFactor: 2, mobile: true, screenOrientation: { type: 'landscapePrimary', angle: 90 } });
   await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  // Desktop touch emulation retains APIs that actual mobile browsers can lack.
+  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: mobileAPIs });
   await page.send('Page.navigate', { url });
-  await waitFor(() => page.evaluate("document.readyState === 'complete' && document.getElementById('music-status').textContent !== 'checking…'"), 'page load');
+  await waitFor(() => page.evaluate("document.readyState === 'complete' && (window.__quakeErrors?.length || document.getElementById('music-status').textContent !== 'checking…')"), 'page load');
+  assert.equal(await page.evaluate("typeof document.exitPointerLock"), 'undefined');
+  assert.deepEqual(await page.evaluate('window.__quakeErrors'), [], 'mobile startup must not require mouse capture or native fullscreen');
 
   const tracks = await page.evaluate("[...document.querySelectorAll('#music-status')].map(e => e.textContent)[0]");
   musicDir = await mkdtemp(path.join(tmpdir(), 'quake-touch-music-'));
@@ -177,6 +190,11 @@ try {
   assert.equal(await page.evaluate("document.getElementById('capture').hidden"), true);
   assert.equal(await page.evaluate("document.querySelector('.touch').hidden"), false);
   passed('Launch Quake by touch starts without the mouse-capture prompt');
+  await page.evaluate('window.scrollTo(0, 0)');
+  await tap(page, '#fullscreen');
+  await waitFor(() => page.evaluate("document.getElementById('stage').classList.contains('expanded') && !document.getElementById('view-exit').hidden"), 'fullscreen fallback');
+  assert.equal(await page.evaluate("Math.round(document.getElementById('stage').getBoundingClientRect().height)"), 412);
+  passed('mobile gameplay fills the viewport without the native Fullscreen API');
 
   const music = await waitFor(async () => {
     const state = await page.evaluate('window.quake.music.state()');
@@ -233,6 +251,8 @@ try {
   await waitFor(async () => (await game(page)).keyDest === 'game' && await page.evaluate("document.querySelector('.touch').dataset.mode === 'game'"), 'Back closes the menu');
   passed('Menu button and arrow pad drive the original menus');
   await screenshot(page, 'touch-controls.png');
+  await tap(page, '#view-exit');
+  assert.equal(await page.evaluate("document.getElementById('stage').classList.contains('expanded')"), false);
 
   await page.evaluate("window.quake.command('name Thumbs'); true");
   await page.evaluate("window.scrollTo(0, 0)");
@@ -240,9 +260,9 @@ try {
   await waitFor(async () => { const state = await game(page); return state?.signon === 4 && !state.serverActive && state.map === 'maps/e1m1.bsp'; }, 'joining co-op by touch');
   const status = await waitFor(async () => {
     const result = await (await fetch(`${url}/api/status`)).json();
-    return result.players === 1 ? result : false;
+    return result.rooms.find(room => room.id === 'coop')?.players.some(player => player.name === 'Thumbs') ? result : false;
   }, 'player listed in public status');
-  const [listed] = status.rooms.find(room => room.id === 'coop').players;
+  const listed = status.rooms.find(room => room.id === 'coop').players.find(player => player.name === 'Thumbs');
   assert.equal(listed.name, 'Thumbs');
   assert.ok(Number.isInteger(listed.ping) && listed.seconds >= 0);
   assert.deepEqual(Object.keys(listed).sort(), ['frags', 'name', 'ping', 'seconds']);
@@ -252,11 +272,32 @@ try {
   const statusPage = await attach(targetId);
   const row = await waitFor(() => statusPage.evaluate("[...document.querySelectorAll('.room tbody tr')].map(row => row.innerText).join('\\n')"), 'status page row');
   assert.match(row, /Thumbs/);
-  assert.match(await statusPage.evaluate("document.getElementById('summary').textContent"), /^1 player online/);
+  assert.match(await statusPage.evaluate("document.getElementById('summary').textContent"), /^\d+ players? online/);
   await screenshot(statusPage, 'status-page.png');
   passed('status page shows who is playing');
 
   assert.deepEqual(await page.evaluate('window.__quakeErrors'), []);
+  const { targetId: olderPhoneId } = await devtools.send('Target.createTarget', { url: 'about:blank' });
+  const olderPhone = await attach(olderPhoneId);
+  await olderPhone.send('Page.enable');
+  await olderPhone.send('Page.bringToFront');
+  await olderPhone.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true, screenOrientation: { type: 'portraitPrimary', angle: 0 } });
+  await olderPhone.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  await olderPhone.send('Page.addScriptToEvaluateOnNewDocument', { source: `${mobileAPIs}\nObject.defineProperty(window, 'WebTransport', { configurable: true, value: undefined });` });
+  await olderPhone.send('Page.navigate', { url });
+  await waitFor(() => olderPhone.evaluate("document.readyState === 'complete' && document.getElementById('music-status').textContent !== 'checking…'"), 'older phone launcher');
+  await olderPhone.evaluate("document.getElementById('start').scrollIntoView({block:'center'})");
+  await tap(olderPhone, '#start');
+  await waitFor(async () => (await game(olderPhone))?.signon === 4, 'single player without WebTransport', 60000);
+  assert.equal(await olderPhone.evaluate("document.getElementById('join').disabled"), true);
+  assert.match(await olderPhone.evaluate("document.getElementById('network-status').textContent"), /Single player is available/);
+  await olderPhone.evaluate('window.scrollTo(0, 0)');
+  await tap(olderPhone, '#fullscreen');
+  await waitFor(() => olderPhone.evaluate("document.getElementById('stage').classList.contains('expanded')"), 'portrait fullscreen fallback');
+  await screenshot(olderPhone, 'touch-portrait.png');
+  assert.equal(await olderPhone.evaluate("Math.round(document.getElementById('stage').getBoundingClientRect().height)"), 844);
+  assert.deepEqual(await olderPhone.evaluate('window.__quakeErrors'), []);
+  passed('portrait phones can launch single player when WebTransport is unavailable');
   passed('no browser errors');
 } catch (error) {
   failure = error;

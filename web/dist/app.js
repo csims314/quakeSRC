@@ -15,9 +15,11 @@ const requestedMode = new URL(location.href).searchParams.get('mode');
 const explicitMode = ['coop', 'deathmatch'].includes(requestedMode);
 $('mode').value = explicitMode ? requestedMode : 'coop';
 const selectedMode = () => $('mode').value;
+const multiplayerSupported = typeof globalThis.WebTransport === 'function';
 function updateJoinButton() {
-  $('join').disabled = !ready || joining || leaving || activeMode === selectedMode();
+  $('join').disabled = !multiplayerSupported || !ready || joining || leaving || activeMode === selectedMode();
 }
+if (!multiplayerSupported) $('network-status').textContent = 'Single player is available. This browser needs WebTransport support for multiplayer.';
 async function waitForGame(predicate) {
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
@@ -27,6 +29,10 @@ async function waitForGame(predicate) {
   throw new Error('The game did not finish switching. Please try joining again.');
 }
 function showServerInfo(config) {
+  if (!multiplayerSupported) {
+    $('multiplayer-summary').textContent = 'Single player available · This browser needs WebTransport support for multiplayer.';
+    return;
+  }
   if (!config.available) {
     $('multiplayer-summary').textContent = 'Multiplayer server unavailable';
     return;
@@ -123,10 +129,11 @@ window.addEventListener('unhandledrejection', event => window.__quakeErrors.push
 // SDL also requests pointer lock during map changes and toolbar clicks. Let
 // the player opt in through Click to play, the canvas, or Fullscreen so Esc
 // reliably leaves the toolbar usable throughout a room transition.
-const nativePointerLock = canvas.requestPointerLock.bind(canvas);
+const nativePointerLock = canvas.requestPointerLock?.bind(canvas);
+const releaseMouse = () => document.exitPointerLock?.();
 let captureRequested = false;
 canvas.requestPointerLock = (...args) => {
-  if (!captureRequested) return Promise.resolve();
+  if (!captureRequested || !nativePointerLock || touch.enabled) return Promise.resolve();
   const result = nativePointerLock(...args);
   result?.catch(error => log(`Mouse capture: ${error.message}`));
   return result;
@@ -167,7 +174,7 @@ function setTouch(enabled, remember = false) {
   touch.setEnabled(enabled);
   $('touch-toggle').setAttribute('aria-pressed', String(enabled));
   if (remember) try { localStorage.setItem('quake-touch', enabled ? 'on' : 'off'); touchChoice = enabled ? 'on' : 'off'; } catch {}
-  if (enabled) document.exitPointerLock();
+  if (enabled) releaseMouse();
   updateCaptureHint();
 }
 // Touch play needs no mouse capture, so the Click to play prompt stays away.
@@ -331,6 +338,7 @@ async function capture() {
   if (!ready) return;
   canvas.focus();
   if (pausedByToolbar) { command('pause'); pausedByToolbar = false; $('pause').textContent = 'Pause'; }
+  if (!nativePointerLock && navigator.maxTouchPoints > 0) setTouch(true);
   if (touch.enabled) return;
   try {
     captureRequested = true;
@@ -344,7 +352,7 @@ $('join').addEventListener('click', async () => {
   if (joining || leaving || !ready) return;
   joining = true; $('join').disabled = true;
   $('network-status').textContent = 'Connecting to multiplayer…';
-  document.exitPointerLock();
+  releaseMouse();
   try {
     const response = await fetch(`/api/multiplayer?mode=${selectedMode()}`);
     if (!response.ok) throw new Error('The selected multiplayer mode is unavailable.');
@@ -362,7 +370,7 @@ $('join').addEventListener('click', async () => {
     const connectionId = await connectQuake(transport, target);
     command('stopdemo\nconnect webtransport\nmenu_main\ntogglemenu');
     await waitForGame(state => state.connectionId === connectionId && state.signon === 4 && !state.serverActive);
-    document.exitPointerLock();
+    releaseMouse();
     $('leave').hidden = false;
     $('network-status').textContent = `Connected to ${target.url}. Click the game to play.`;
     $('save-status').textContent = entered ? 'MULTIPLAYER' : config.mode === 'coop' ? 'CO-OP / ORIGINAL MONSTERS' : 'DEATHMATCH';
@@ -384,7 +392,7 @@ $('leave').addEventListener('click', async () => {
   $('save-status').textContent = 'LOCAL SINGLE PLAYER';
   try {
     await waitForGame(state => state.serverActive && state.map === 'start' && state.signon === 4);
-    document.exitPointerLock();
+    releaseMouse();
     $('network-status').textContent = 'Returned to single player.';
   } catch (error) { $('network-status').textContent = error.message; }
   finally { leaving = false; updateJoinButton(); }
@@ -398,7 +406,7 @@ $('touch-toggle').addEventListener('click', () => setTouch(!touch.enabled, true)
 $('stage').addEventListener('pointerdown', event => {
   if (event.pointerType === 'touch' && !touch.enabled && touchChoice !== 'off') setTouch(true);
 }, true);
-setTouch(touchChoice ? touchChoice === 'on' : prefersTouch());
+setTouch(touchChoice ? touchChoice === 'on' : prefersTouch() || (!nativePointerLock && navigator.maxTouchPoints > 0));
 for (const id of ['music-files', 'music-add']) $(id).addEventListener('change', addMusic);
 $('music-clear').addEventListener('click', async () => {
   try { showMusic(await music.clearFiles()); $('music-note').textContent = 'Removed your music from this browser.'; }
@@ -407,15 +415,35 @@ $('music-clear').addEventListener('click', async () => {
 $('pause').addEventListener('click', () => {
   command('pause'); pausedByToolbar = !pausedByToolbar;
   $('pause').textContent = pausedByToolbar ? 'Resume' : 'Pause';
-  if (pausedByToolbar) document.exitPointerLock();
+  if (pausedByToolbar) releaseMouse();
+});
+function updateGameView() {
+  const expanded = $('stage').classList.contains('expanded') || document.fullscreenElement === $('stage');
+  $('view-exit').hidden = !expanded;
+  $('fullscreen').setAttribute('aria-pressed', String(expanded));
+}
+function expandGame(value) {
+  $('stage').classList.toggle('expanded', value);
+  document.body.classList.toggle('expanded-game', value);
+  updateGameView();
+}
+document.addEventListener('fullscreenchange', updateGameView);
+$('view-exit').addEventListener('click', async () => {
+  if (document.fullscreenElement) await document.exitFullscreen?.();
+  expandGame(false);
 });
 $('fullscreen').addEventListener('click', async () => {
   try {
-    if (document.fullscreenElement) await document.exitFullscreen();
+    if (document.fullscreenElement) await document.exitFullscreen?.();
+    else if ($('stage').classList.contains('expanded')) expandGame(false);
     else {
-      await $('stage').requestFullscreen();
+      if ($('stage').requestFullscreen) {
+        try { await $('stage').requestFullscreen(); }
+        catch { expandGame(true); }
+      } else expandGame(true);
       if (touch.enabled) await screen.orientation?.lock?.('landscape').catch(() => {});
     }
+    updateGameView();
     if (ready) await capture();
   } catch (error) { log(`Fullscreen: ${error.message}`); }
 });
